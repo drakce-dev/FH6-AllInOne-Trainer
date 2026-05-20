@@ -116,6 +116,12 @@ public partial class UnlocksViewModel : PageViewModelBase
     {
         StatusIsError = !ok;
         StatusMessage = msg;
+        Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+        {
+            await System.Threading.Tasks.Task.Delay(5000);
+            StatusMessage = null;
+            DiagnosticsMessage = null;
+        });
     }
 
     // ===== Quick Start =====

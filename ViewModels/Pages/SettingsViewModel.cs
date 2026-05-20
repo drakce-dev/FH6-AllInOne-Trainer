@@ -91,6 +91,8 @@ public partial class SettingsViewModel : PageViewModelBase
 
     public string SettingsPath => AppSettings.SettingsPath;
 
+    public override IReadOnlyList<FeatureRow> Features { get; } = [];
+
     [RelayCommand]
     private void OpenSettingsFolder()
     {
@@ -109,7 +111,7 @@ public partial class SettingsViewModel : PageViewModelBase
 
     // === Signature Scan ===
 
-    [RelayCommand(CanExecute = nameof(CanScan))]
+    [RelayCommand]
     private void ScanSignatures()
     {
         if (_cheat is null) { ScanStatus = "Service not available."; return; }
@@ -129,8 +131,6 @@ public partial class SettingsViewModel : PageViewModelBase
             ScanStatus = t.IsFaulted ? $"Error: {t.Exception?.InnerException?.Message}" : t.Result;
         });
     }
-
-    private bool CanScan => !IsScanning && _cheat is not null;
 
     // === Conflict Detection ===
 

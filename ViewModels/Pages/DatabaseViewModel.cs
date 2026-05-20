@@ -1,3 +1,4 @@
+using System;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FH6Mod.Cheats.Sql;
@@ -56,6 +57,17 @@ public partial class DatabaseViewModel : PageViewModelBase
         DiagnosticsMessage = _cheats.Diagnostics;
         StatusIsError = !ok;
         StatusMessage = ok ? $"{label} applied. Effect persists until game restart." : _cheats.LastError;
+        AutoClearStatus();
+    }
+
+    private void AutoClearStatus()
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+        {
+            await System.Threading.Tasks.Task.Delay(5000);
+            StatusMessage = null;
+            DiagnosticsMessage = null;
+        });
     }
 
     [RelayCommand]
@@ -86,6 +98,7 @@ public partial class DatabaseViewModel : PageViewModelBase
         StatusMessage = errors.Count == 0
             ? $"Unlock Everything applied — {string.Join(", ", labels)}. All cars free, visible, in garage, free upgrades & wheels."
             : $"Partially applied. Failed: {string.Join(", ", errors)}";
+        AutoClearStatus();
     }
 
     [RelayCommand] private void ClearNewTag()     => Run(SqlFeature.ClearNewTag,     "Clear NEW tags");
@@ -109,6 +122,7 @@ public partial class DatabaseViewModel : PageViewModelBase
         StatusMessage = ok
             ? (target ? "Free Cars LOCK ON — prices stay at 0 (re-applied every 10s)." : "Free Cars LOCK OFF — restored from backup.")
             : _cheats.LastError;
+        AutoClearStatus();
     }
 
     [RelayCommand]
@@ -122,6 +136,7 @@ public partial class DatabaseViewModel : PageViewModelBase
         StatusMessage = ok
             ? (target ? "Autoshow LOCK ON — every car visible (re-applied every 10s)." : "Autoshow LOCK OFF — restored from backup.")
             : _cheats.LastError;
+        AutoClearStatus();
     }
 
     [RelayCommand]
@@ -135,5 +150,6 @@ public partial class DatabaseViewModel : PageViewModelBase
         StatusMessage = ok
             ? (target ? "Install Flags LOCK ON — every car stays Installed/Purchased/Drivable (re-applied every 10s)." : "Install Flags LOCK OFF — restored from backup.")
             : _cheats.LastError;
+        AutoClearStatus();
     }
 }

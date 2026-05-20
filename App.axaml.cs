@@ -75,20 +75,9 @@ public partial class App : Application
         services.AddSingleton<ProfileService>();
         services.AddSingleton<MainWindowViewModel>();
 
-        // Singletons so page state (toggle states, entered values, scroll-ish things)
-        // survives nav switches. Transient would reset everything every time the user
-        // clicked away — locks would look OFF after returning to Unlocks even though
-        // CheatService kept them armed, and the next click would no-op.
-        services.AddSingleton<DashboardViewModel>();
+        // Singletons so page state (toggle states, entered values) survives nav switches.
         services.AddSingleton<UnlocksViewModel>();
-        services.AddSingleton<VehicleViewModel>();
-        services.AddSingleton<CameraViewModel>();
-        services.AddSingleton<WorldViewModel>();
-        services.AddSingleton<TuningViewModel>();
-        services.AddSingleton<CustomizationViewModel>();
         services.AddSingleton<DatabaseViewModel>();
-        services.AddSingleton<MiscViewModel>();
-        services.AddSingleton<BypassViewModel>();
         services.AddSingleton<SettingsViewModel>(sp => new SettingsViewModel(
             sp.GetRequiredService<CheatService>(),
             sp.GetRequiredService<GameProcessService>(),

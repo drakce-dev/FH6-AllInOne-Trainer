@@ -106,4 +106,4 @@ GPL-3.0 — source must remain open. See [LICENSE](LICENSE).
 
 ---
 
-**FH6 All-in-One Trainer** · v3.1.0 · 2026 · GPL-3.0 · Solo / Free Roam only
+**FH6 All-in-One Trainer** · v3.1.1 · 2026 · GPL-3.0 · Solo / Free Roam only
