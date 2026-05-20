@@ -64,6 +64,17 @@ public partial class UnlocksViewModel : PageViewModelBase
     [ObservableProperty] private string _driftMultiText = "10";
     [ObservableProperty] private bool _isNoSkillBreakOn;
 
+    // --- Batch 3: new cheats ---
+    [ObservableProperty] private bool _isAccelerationOn;
+    [ObservableProperty] private string _accelerationText = "2.0";
+    [ObservableProperty] private bool _isSpeedZoneMultiplierOn;
+    [ObservableProperty] private string _speedZoneMultiplierText = "10";
+    [ObservableProperty] private bool _isSpeedTrapMultiplierOn;
+    [ObservableProperty] private string _speedTrapMultiplierText = "10";
+    [ObservableProperty] private bool _isMissionTimeScaleOn;
+    [ObservableProperty] private string _missionTimeScaleText = "0.0";
+    [ObservableProperty] private bool _isFreeClothingOn;
+
     public UnlocksViewModel()
         : this(App.Services.GetRequiredService<CheatService>(),
                App.Services.GetRequiredService<GameProcessService>()) { }
@@ -329,5 +340,49 @@ public partial class UnlocksViewModel : PageViewModelBase
         var on = !_cheats.IsActive(RuntimeProfileFeature.NoSkillBreak);
         Toggle(RuntimeProfileFeature.NoSkillBreak, on, 0, "No Skill Break");
         IsNoSkillBreakOn = _cheats.IsActive(RuntimeProfileFeature.NoSkillBreak);
+    }
+
+    // ===== Batch 3: new cheats =====
+    [RelayCommand] private void ToggleAcceleration()
+    {
+        var on = !_cheats.IsActive(RuntimeProfileFeature.Acceleration);
+        Toggle(RuntimeProfileFeature.Acceleration, on, ParseFloatAsIntBits(AccelerationText, 2.0f), "Acceleration");
+        IsAccelerationOn = _cheats.IsActive(RuntimeProfileFeature.Acceleration);
+    }
+    [RelayCommand] private void ApplyAcceleration()
+        => ApplyValue(RuntimeProfileFeature.Acceleration, ParseFloatAsIntBits(AccelerationText, 2.0f), "Acceleration");
+
+    [RelayCommand] private void ToggleSpeedZoneMultiplier()
+    {
+        var on = !_cheats.IsActive(RuntimeProfileFeature.SpeedZoneMultiplier);
+        Toggle(RuntimeProfileFeature.SpeedZoneMultiplier, on, ParseFloatAsIntBits(SpeedZoneMultiplierText, 10f), "Speed Zone x");
+        IsSpeedZoneMultiplierOn = _cheats.IsActive(RuntimeProfileFeature.SpeedZoneMultiplier);
+    }
+    [RelayCommand] private void ApplySpeedZoneMultiplier()
+        => ApplyValue(RuntimeProfileFeature.SpeedZoneMultiplier, ParseFloatAsIntBits(SpeedZoneMultiplierText, 10f), "Speed Zone x");
+
+    [RelayCommand] private void ToggleSpeedTrapMultiplier()
+    {
+        var on = !_cheats.IsActive(RuntimeProfileFeature.SpeedTrapMultiplier);
+        Toggle(RuntimeProfileFeature.SpeedTrapMultiplier, on, ParseFloatAsIntBits(SpeedTrapMultiplierText, 10f), "Speed Trap x");
+        IsSpeedTrapMultiplierOn = _cheats.IsActive(RuntimeProfileFeature.SpeedTrapMultiplier);
+    }
+    [RelayCommand] private void ApplySpeedTrapMultiplier()
+        => ApplyValue(RuntimeProfileFeature.SpeedTrapMultiplier, ParseFloatAsIntBits(SpeedTrapMultiplierText, 10f), "Speed Trap x");
+
+    [RelayCommand] private void ToggleMissionTimeScale()
+    {
+        var on = !_cheats.IsActive(RuntimeProfileFeature.MissionTimeScale);
+        Toggle(RuntimeProfileFeature.MissionTimeScale, on, ParseFloatAsIntBits(MissionTimeScaleText, 0.0f), "Mission Time");
+        IsMissionTimeScaleOn = _cheats.IsActive(RuntimeProfileFeature.MissionTimeScale);
+    }
+    [RelayCommand] private void ApplyMissionTimeScale()
+        => ApplyValue(RuntimeProfileFeature.MissionTimeScale, ParseFloatAsIntBits(MissionTimeScaleText, 0.0f), "Mission Time");
+
+    [RelayCommand] private void ToggleFreeClothing()
+    {
+        var on = !_cheats.IsActive(RuntimeProfileFeature.FreeClothing);
+        Toggle(RuntimeProfileFeature.FreeClothing, on, 0, "Free Clothing");
+        IsFreeClothingOn = _cheats.IsActive(RuntimeProfileFeature.FreeClothing);
     }
 }

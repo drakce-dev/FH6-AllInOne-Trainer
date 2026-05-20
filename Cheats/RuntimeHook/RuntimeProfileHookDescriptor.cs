@@ -22,6 +22,13 @@ public enum RuntimeProfileFeature
     PrizeScale,
     RemoveBuildCap,
     RaceTimeScale,
+
+    // Batch 3 — more ForzaMods AIO signatures
+    Acceleration,
+    SpeedZoneMultiplier,
+    SpeedTrapMultiplier,
+    MissionTimeScale,
+    FreeClothing,
 }
 
 internal sealed class RuntimeProfileHookDescriptor
@@ -384,6 +391,121 @@ internal static class ProfileFeatureCatalog
                 242, 15, 88, 200,
                 // cvtss2sd xmm1,xmm6 (original first instr)
                 243, 15, 90, 206,
+            ],
+        },
+
+        // Acceleration Override: replace car acceleration input with custom value
+        // FH6 variant from Omkmakwana: F3 0F 10 81 ?? ?? ?? ?? F3 0F 59 C1 C3
+        // Original: F3 0F 10 5D 0C (movss xmm3,[rbp+0Ch])
+        RuntimeProfileFeature.Acceleration => new()
+        {
+            Key = "Acceleration", Name = "Acceleration Override",
+            Signature = "F3 0F ? ? ? 41 0F ? ? 0F C6 DB ? 41 0F",
+            MatchOffset = 0, HookSize = 5,
+            ExpectedOriginal = [243, 15, 16, 93, 12],
+            ToggleOffset = 14, ValueOffset = 15,
+            Asm =
+            [
+                // cmp [toggle], 1
+                128, 61, 11, 0, 0, 0, 1,
+                // jne skip
+                117, 3,
+                // movss xmm3,[value]
+                243, 15, 16, 29, 2, 0, 0, 0,
+                // movss xmm3,[rbp+0Ch] (original)
+                243, 15, 16, 93, 12,
+            ],
+        },
+
+        // Speed Zone Multiplier: multiply speed zone score
+        // Original: F3 41 0F 5E B6 E8 00 00 00 (divss xmm6,[r14+0E8h])
+        RuntimeProfileFeature.SpeedZoneMultiplier => new()
+        {
+            Key = "SpeedZoneMultiplier", Name = "Speed Zone Multiplier",
+            Signature = "F3 41 ? ? ? ? ? ? ? 0F 28 ? 0F 28 ? ? ? 48 83 C4",
+            MatchOffset = 0, HookSize = 9,
+            ExpectedOriginal = [243, 65, 15, 94, 182, 232, 0, 0, 0],
+            ToggleOffset = 22, ValueOffset = 23,
+            Asm =
+            [
+                // cmp [toggle], 1
+                128, 61, 15, 0, 0, 0, 1,
+                // jne skip
+                117, 7,
+                // mulss xmm6,[value] (instead of dividing)
+                243, 15, 89, 53, 2, 0, 0, 0,
+                // divss xmm6,[r14+0E8h] (original)
+                243, 65, 15, 94, 182, 232, 0, 0, 0,
+            ],
+        },
+
+        // Speed Trap Multiplier: multiply speed trap score
+        // Original: 0F 29 44 24 30 (movaps [rsp+30h],xmm0)
+        RuntimeProfileFeature.SpeedTrapMultiplier => new()
+        {
+            Key = "SpeedTrapMultiplier", Name = "Speed Trap Multiplier",
+            Signature = "0F 29 ? ? ? 48 8B ? 48 8B ? ? ? ? ? 48 85 ? 74",
+            MatchOffset = 0, HookSize = 5,
+            ExpectedOriginal = [15, 41, 68, 36, 48],
+            ToggleOffset = 14, ValueOffset = 15,
+            Asm =
+            [
+                // cmp [toggle], 1
+                128, 61, 11, 0, 0, 0, 1,
+                // jne skip
+                117, 3,
+                // mulss xmm0,[value]
+                243, 15, 89, 5, 2, 0, 0, 0,
+                // movaps [rsp+30h],xmm0 (original)
+                15, 41, 68, 36, 48,
+            ],
+        },
+
+        // Mission Time Scale: scale mission timer (0 = freeze)
+        // Original: F3 0F 5C C7 F3 0F 11 87 0C 04 00 00
+        RuntimeProfileFeature.MissionTimeScale => new()
+        {
+            Key = "MissionTimeScale", Name = "Mission Time Scale",
+            Signature = "F3 0F ? ? F3 0F ? ? ? ? ? ? 0F 2F ? 0F 87 ? ? ? ? C7 ? ? ? ? ? 00 00 00 00",
+            MatchOffset = 0, HookSize = 12,
+            ExpectedOriginal = [243, 15, 92, 199, 243, 15, 17, 135, 12, 4, 0, 0],
+            ToggleOffset = 26, ValueOffset = 27,
+            Asm =
+            [
+                // cmp [toggle], 1
+                128, 61, 16, 0, 0, 0, 1,
+                // jne skip
+                117, 7,
+                // mulss xmm0,[value]
+                243, 15, 89, 5, 2, 0, 0, 0,
+                // subss xmm0,xmm7 (original first)
+                243, 15, 92, 199,
+                // movss [rdi+40Ch],xmm0 (original second)
+                243, 15, 17, 135, 12, 4, 0, 0,
+            ],
+        },
+
+        // Free Clothing: set clothing item price to 0
+        // Original: 8B 88 A4 00 00 00 (mov ecx,[rax+0A4h])
+        RuntimeProfileFeature.FreeClothing => new()
+        {
+            Key = "FreeClothing", Name = "Free Clothing",
+            Signature = "48 8B ? ? ? 8B 88 ? ? ? ? 39 4B",
+            MatchOffset = 5, HookSize = 6,
+            ExpectedOriginal = [139, 136, 164, 0, 0, 0],
+            ToggleOffset = 18, ValueOffset = -1,
+            Asm =
+            [
+                // cmp [toggle], 1
+                128, 61, 14, 0, 0, 0, 1,
+                // jne skip
+                117, 3,
+                // xor ecx,ecx (price = 0)
+                49, 201,
+                // nop
+                144,
+                // mov ecx,[rax+0A4h] (original)
+                139, 136, 164, 0, 0, 0,
             ],
         },
 

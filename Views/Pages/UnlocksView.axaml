@@ -247,6 +247,81 @@
                               IsChecked="{Binding IsRaceTimeScaleOn, Mode=OneWay}" IsEnabled="{Binding CanToggle}" Command="{Binding ToggleRaceTimeScaleCommand}" />
             </Grid>
 
+            <!-- ========== ADVANCED CHEATS ========== -->
+            <TextBlock Text="ADVANCED" FontSize="11" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextDim}" Margin="0,8,0,0" />
+
+            <!-- Acceleration Override -->
+            <Grid ColumnDefinitions="140,*,Auto" ColumnSpacing="8" Height="34">
+                <TextBlock Grid.Column="0" Text="Acceleration" VerticalAlignment="Center" FontSize="13" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                    <TextBox Text="{Binding AccelerationText, Mode=TwoWay}" Width="70" FontSize="12" Padding="6,4" />
+                    <Button Classes="ghost" Content="Set" Padding="8,4" FontSize="11"
+                            IsEnabled="{Binding CanToggle}" Command="{Binding ApplyAccelerationCommand}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                              IsChecked="{Binding IsAccelerationOn, Mode=OneWay}" IsEnabled="{Binding CanToggle}"
+                              Command="{Binding ToggleAccelerationCommand}" />
+            </Grid>
+
+            <!-- Speed Zone Multiplier -->
+            <Grid ColumnDefinitions="140,*,Auto" ColumnSpacing="8" Height="34">
+                <TextBlock Grid.Column="0" Text="Speed Zone x" VerticalAlignment="Center" FontSize="13" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                    <Button Classes="ghost" Content="5" Padding="6,4" FontSize="11" Command="{Binding ApplySpeedZoneMultiplierCommand}" CommandParameter="5" />
+                    <Button Classes="ghost" Content="10" Padding="6,4" FontSize="11" Command="{Binding ApplySpeedZoneMultiplierCommand}" CommandParameter="10" />
+                    <Button Classes="ghost" Content="100" Padding="6,4" FontSize="11" Command="{Binding ApplySpeedZoneMultiplierCommand}" CommandParameter="100" />
+                    <TextBox Text="{Binding SpeedZoneMultiplierText, Mode=TwoWay}" Width="70" FontSize="12" Padding="6,4" />
+                    <Button Classes="primary" Content="Set" Padding="8,4" FontSize="11"
+                            IsEnabled="{Binding CanToggle}" Command="{Binding ApplySpeedZoneMultiplierCommand}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                              IsChecked="{Binding IsSpeedZoneMultiplierOn, Mode=OneWay}" IsEnabled="{Binding CanToggle}"
+                              Command="{Binding ToggleSpeedZoneMultiplierCommand}" />
+            </Grid>
+
+            <!-- Speed Trap Multiplier -->
+            <Grid ColumnDefinitions="140,*,Auto" ColumnSpacing="8" Height="34">
+                <TextBlock Grid.Column="0" Text="Speed Trap x" VerticalAlignment="Center" FontSize="13" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                    <Button Classes="ghost" Content="5" Padding="6,4" FontSize="11" Command="{Binding ApplySpeedTrapMultiplierCommand}" CommandParameter="5" />
+                    <Button Classes="ghost" Content="10" Padding="6,4" FontSize="11" Command="{Binding ApplySpeedTrapMultiplierCommand}" CommandParameter="10" />
+                    <Button Classes="ghost" Content="100" Padding="6,4" FontSize="11" Command="{Binding ApplySpeedTrapMultiplierCommand}" CommandParameter="100" />
+                    <TextBox Text="{Binding SpeedTrapMultiplierText, Mode=TwoWay}" Width="70" FontSize="12" Padding="6,4" />
+                    <Button Classes="primary" Content="Set" Padding="8,4" FontSize="11"
+                            IsEnabled="{Binding CanToggle}" Command="{Binding ApplySpeedTrapMultiplierCommand}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                              IsChecked="{Binding IsSpeedTrapMultiplierOn, Mode=OneWay}" IsEnabled="{Binding CanToggle}"
+                              Command="{Binding ToggleSpeedTrapMultiplierCommand}" />
+            </Grid>
+
+            <!-- Mission Time Scale -->
+            <Grid ColumnDefinitions="140,*,Auto" ColumnSpacing="8" Height="34">
+                <TextBlock Grid.Column="0" Text="Mission Time" VerticalAlignment="Center" FontSize="13" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                    <Button Classes="ghost" Content="0 (freeze)" Padding="6,4" FontSize="11" Command="{Binding ApplyMissionTimeScaleCommand}" CommandParameter="0" />
+                    <Button Classes="ghost" Content="0.5" Padding="6,4" FontSize="11" Command="{Binding ApplyMissionTimeScaleCommand}" CommandParameter="0.5" />
+                    <Button Classes="ghost" Content="2.0" Padding="6,4" FontSize="11" Command="{Binding ApplyMissionTimeScaleCommand}" CommandParameter="2.0" />
+                    <TextBox Text="{Binding MissionTimeScaleText, Mode=TwoWay}" Width="70" FontSize="12" Padding="6,4" />
+                    <Button Classes="primary" Content="Set" Padding="8,4" FontSize="11"
+                            IsEnabled="{Binding CanToggle}" Command="{Binding ApplyMissionTimeScaleCommand}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                              IsChecked="{Binding IsMissionTimeScaleOn, Mode=OneWay}" IsEnabled="{Binding CanToggle}"
+                              Command="{Binding ToggleMissionTimeScaleCommand}" />
+            </Grid>
+
+            <!-- Free Clothing -->
+            <Grid ColumnDefinitions="140,*,Auto" ColumnSpacing="8" Height="34">
+                <TextBlock Grid.Column="0" Text="Free Clothing" VerticalAlignment="Center" FontSize="13" />
+                <TextBlock Grid.Column="1" Text="Set all clothing prices to 0" VerticalAlignment="Center"
+                           FontSize="11" Foreground="{DynamicResource TextDim}" />
+                <ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
+                              IsChecked="{Binding IsFreeClothingOn, Mode=OneWay}" IsEnabled="{Binding CanToggle}"
+                              Command="{Binding ToggleFreeClothingCommand}" />
+            </Grid>
+
             <!-- ========== BROKEN ========== -->
             <TextBlock Text="BROKEN (game-patched)" FontSize="11" FontWeight="SemiBold"
                        Foreground="#FF5555" Margin="0,8,0,0" />

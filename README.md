@@ -28,12 +28,17 @@ Latest release: **[GitHub Releases](../../releases/latest)** — grab `FH6AllInO
 - **Gravity Multiplier** — adjust gravity (low gravity, moon gravity, etc.)
 - **No Water Drag** — remove water resistance when driving through lakes/rivers
 - **Remove Build Cap** — remove engine swap / build power limit
+- **Acceleration Override** — boost car acceleration with custom multiplier
+- **Free Clothing** — set all clothing prices to 0
 
 ### World & Events (Unlocks Page)
 - **Time of Day** — set any hour (6 = dawn, 12 = noon, 18 = dusk, 0 = midnight)
 - **Skill Score Multiplier** — multiply skill chain score earned (5x, 10x, 100x)
 - **Prize Scale** — multiply wheelspin reward value (5x, 10x, 50x)
 - **Race Time Scale** — slow down or speed up race timer (0 = freeze timer)
+- **Mission Time Scale** — slow down or speed up mission timer (0 = freeze timer)
+- **Speed Zone Multiplier** — multiply speed zone score (5x, 10x, 100x)
+- **Speed Trap Multiplier** — multiply speed trap score (5x, 10x, 100x)
 
 ### SQL Database (Database Page)
 - **Unlock Everything** — applies all 9 SQL cheats at once (one click)
@@ -94,11 +99,11 @@ Output: `bin/Release/net10.0-windows/win-x64/publish/FH6AllInOneTrainer.exe`
 | Who | Contribution |
 |-----|-------------|
 | **[paris' club](https://discord.gg/WSd3bRNJuJ)** | Core cheats: runtime hooks (Credits, Wheelspins, Skill Points, Sell Payout), SQL features (Free Cars, Autoshow, Install Flags, Add All Cars, Clear NEW Tag), CRC bypass, code caves, memory injection |
-| **[ForzaMods](https://github.com/ForzaMods/Forza-Mods-AIO)** | AOB signatures for Freeze AI, Teleport, No Clip, Gravity, No Water Drag, Time of Day, Skill Score Multiplier, Prize Scale, Remove Build Cap, Race Time Scale — [Forza-Mods-AIO](https://github.com/ForzaMods/Forza-Mods-AIO) |
+| **[ForzaMods](https://github.com/ForzaMods/Forza-Mods-AIO)** | AOB signatures for all 22 hook-based cheats — Freeze AI, Teleport, No Clip, Gravity, Acceleration, Speed Zone/Trap Multipliers, Mission Time Scale, Free Clothing, and more |
 | **[matkhl](https://github.com/matkhl)** | Free Upgrades SQL (47 upgrade tables), Free Wheels, Upgrade Presets, CarBuckets autoshow — [FH6-DBDUMPER](https://github.com/matkhl/FH6-DBDUMPER) |
 | **[Chaarkor](https://github.com/Chaarkoor)** | Original Avalonia UI shell, MVVM architecture, design system, pattern scanner — [Chaarkors-FH6-Trainer](https://github.com/Chaarkoor/Chaarkors-FH6-Trainer) |
 | **[Reloaded.Memory](https://github.com/Reloaded-Project/Reloaded.Memory.Sigscan)** | SIMD-accelerated AOB scanner |
-| **[changcheng967](https://github.com/changcheng967)** | All-in-one improvements: Quick Start, Max All, Unlock Everything, 10 new cheats, 4 new SQL features, system tray, safety locks, profile system, UI redesign, rebrand |
+| **[changcheng967](https://github.com/changcheng967)** | All-in-one improvements: Quick Start, Max All, Unlock Everything, 22 runtime hooks, 9 SQL features, system tray, safety locks, profile system, UI redesign, rebrand |
 
 ## 📝 License
 
@@ -106,4 +111,4 @@ GPL-3.0 — source must remain open. See [LICENSE](LICENSE).
 
 ---
 
-**FH6 All-in-One Trainer** · v3.1.2 · 2026 · GPL-3.0 · Solo / Free Roam only
+**FH6 All-in-One Trainer** · v4.0.0 · 2026 · GPL-3.0 · Solo / Free Roam only
