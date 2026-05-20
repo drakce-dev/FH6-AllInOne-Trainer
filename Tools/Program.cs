@@ -13,10 +13,8 @@ class Program
 {
     [DllImport("kernel32.dll", SetLastError = true)]
     static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
-
     [DllImport("kernel32.dll", SetLastError = true)]
     static extern bool ReadProcessMemory(IntPtr h, IntPtr baseAddr, byte[] buf, IntPtr size, out IntPtr read);
-
     [DllImport("kernel32.dll", SetLastError = true)]
     static extern bool CloseHandle(IntPtr h);
 
@@ -34,7 +32,7 @@ class Program
         var proc = procs[0];
         Log($"FH6 PID {proc.Id}");
         var handle = OpenProcess(PROCESS_ALL_ACCESS, false, proc.Id);
-        if (handle == IntPtr.Zero) { Log("ERROR: OpenProcess failed. Run as admin."); File.WriteAllText("scan_results.txt", output.ToString()); return; }
+        if (handle == IntPtr.Zero) { Log("ERROR: OpenProcess failed."); File.WriteAllText("scan_results.txt", output.ToString()); return; }
 
         try
         {
@@ -44,135 +42,241 @@ class Program
             Log($"Base 0x{baseAddr.ToInt64():X}, {modSize / 1024 / 1024} MB");
 
             var buf = new byte[modSize];
-            if (!ReadProcessMemory(handle, baseAddr, buf, (IntPtr)modSize, out var bytesRead))
-            { Log($"ReadProcessMemory failed: {Marshal.GetLastWin32Error()}"); return; }
+            ReadProcessMemory(handle, baseAddr, buf, (IntPtr)modSize, out var bytesRead);
             Log($"Read {bytesRead / 1024 / 1024} MB\n");
 
-            // === STEP 1: Scan all known patterns ===
-            var patterns = new (string Name, string Pattern)[]
+            using var scanner = new Scanner(buf);
+
+            // =====================================================
+            // PART 1: NEW CHEAT PATTERNS (from ForzaMods AIO)
+            // =====================================================
+            Log("========== NEW CHEAT PATTERNS ==========\n");
+
+            var newCheats = new (string Name, string Pattern)[]
             {
-                ("Credits",              "E8 ?? ?? ?? ?? 89 84 ?? ?? ?? ?? ?? 4C 8D ?? ?? ?? ?? ?? 48 8B"),
-                ("Wheelspins",           "48 89 5C 24 08 57 48 83 EC 20 48 8B FA 33 D2 48 8B 4F 10"),
-                ("SuperWheelspins",      "48 89 5C 24 08 57 48 83 EC 20 48 8B FA 33 D2 48 8B 4F 18"),
-                ("SkillPoints",          "85 D2 78 32 48 89 5C 24 08 57 48 83 EC 20 8B DA 48 8B F9 48 8B 49 48"),
-                ("DriftScore",           "E8 ?? ?? ?? ?? F3 0F ?? ?? 0F 28 ?? ?? ?? 0F 28"),
-                ("NoSkillBreak",         "0F B6 ?? 40 38 ?? ?? ?? ?? ?? 74 ?? 84 C0"),
-                ("SellFactor",           "44 8B ?? ?? ?? ?? ?? 33 D2 48 8B ?? ?? ?? ?? ?? E8 ?? ?? ?? ?? 90"),
-                ("FreezeAI",            "F3 0F ?? ?? ?? ?? ?? ?? F3 0F ?? ?? F3 0F ?? ?? 0F 57 ?? F3 0F ?? ?? ?? ?? ?? ?? F3 0F ?? ?? C3"),
-                ("Teleport",            "0F 10 ?? ?? ?? ?? ?? 0F 28 ?? 0F C2 ?? 00 0F 50"),
-                ("NoClip",              "48 8B ?? 4C 89 ?? ?? 56 41 ?? 41"),
-                ("Gravity",             "F3 0F ?? ?? ?? F3 0F ?? ?? ?? ?? ?? ?? F3 0F ?? ?? ?? ?? ?? ?? 45 84 ?? 74"),
-                ("NoWaterDrag",         "48 8B ?? F3 0F ?? ?? ?? 53 55"),
-                ("TimeOfDay",           "44 0F ?? ?? ?? ?? F2 0F ?? ?? ?? 48 83 C4"),
-                ("SkillScoreMultiplier","8B 78 ?? 48 8B ?? ?? 48 85 ?? 74 ?? 41 8B"),
-                ("PrizeScale",          "F3 0F ?? ?? ?? 33 D2 48 8B ?? ?? E8 ?? ?? ?? ?? 90 48 85 ?? 74 ?? 8B C5"),
-                ("RemoveBuildCap",      "E8 ?? ?? ?? ?? F3 0F ?? ?? ?? 48 8B ?? ?? ?? 48 8B"),
-                ("RaceTimeScale",       "40 ?? 48 83 EC ?? 48 8B ?? 48 8B ?? 0F 29 ?? ?? ?? 0F 28 ?? FF 50 ?? 0F 57"),
-                ("Acceleration",        "F3 0F ?? ?? ?? 41 0F ?? ?? 0F C6 DB ?? 41 0F"),
-                ("SpeedZone",           "F3 41 ?? ?? ?? ?? ?? ?? ?? 0F 28 ?? 0F 28 ?? ?? ?? 48 83 C4"),
-                ("SpeedTrap",           "0F 29 ?? ?? ?? 48 8B ?? 48 8B ?? ?? ?? ?? ?? 48 85 ?? 74"),
-                ("MissionTimeScale",    "F3 0F ?? ?? F3 0F ?? ?? ?? ?? ?? ?? 0F 2F ?? 0F 87 ?? ?? ?? ?? C7 ?? ?? ?? ?? ?? 00 00 00 00"),
-                ("FreeClothing",        "48 8B ?? ?? ?? 8B 88 ?? ?? ?? ?? 39 4B"),
-                ("CDatabase_1",         "48 8B 0D ?? ?? ?? ?? 48 8B 01 4C 8D 45 ?? 48 8D 55 ?? FF 50 48 90 48 8B 4D ?? 48 85 C9"),
-                ("CDatabase_4",         "48 8B 35 ?? ?? ?? ?? 48 85 F6 74"),
+                // --- Velocity / Speed ---
+                ("Speed_Hack_1",            "F3 0F 11 83 ?? 01 00 00 C3"),
+                ("Speed_Hack_2",            "F3 0F 58 83 ?? 01 00 00 C3"),
+                ("Velocity_X_write",        "F3 0F 11 87 48 02 00 00"),
+                ("Velocity_Y_write",        "F3 0F 11 87 4C 02 00 00"),
+                ("Velocity_Z_write",        "F3 0F 11 87 50 02 00 00"),
+                ("CarSpeed_read",           "0F 28 83 ?? 01 00 00 F3 0F 59 C2"),
+
+                // --- Brake / Jump ---
+                ("Brake_Hack",              "F3 0F 11 9F 80 00 00 00"),
+                ("Jump_Height",             "F3 0F 58 83 ?? 01 00 00 0F 57"),
+
+                // --- Car tuning ---
+                ("TireGrip_Front",          "F3 0F 11 8B ?? 01 00 00 F3 0F 10 83"),
+                ("TireGrip_Rear",           "F3 0F 11 83 ?? 01 00 00 F3 0F 10 8B"),
+                ("Horsepower_Override",     "F3 0F 11 83 4C 05 00 00"),
+                ("Torque_Override",         "F3 0F 11 83 50 05 00 00"),
+
+                // --- XP / Progress ---
+                ("XP_Write1",               "89 87 ?? ?? 00 00 8B 47"),
+                ("XP_Write2",               "89 84 ?? ?? ?? 00 00 8B 47"),
+                ("Influence_Write",         "49 63 ?? 8B 44 ?? ?? C3"),
+                ("SeriesPoints",            "89 87 ?? 05 00 00 48 8B"),
+
+                // --- Camera / Photo ---
+                ("CameraFOV",              "F3 0F 11 83 90 00 00 00"),
+                ("CameraHeight",           "F3 0F 11 83 80 00 00 00"),
+                ("PhotoMode_unlock",       "80 ?? ?? ?? 00 00 0F 84"),
+
+                // --- Paint / Visual ---
+                ("GlowingPaint",           "F3 0F 11 83 ?? 0A 00 00 0F 57"),
+                ("Headlight_Color",        "F3 0F 11 83 ?? 06 00 00 0F 57"),
+                ("Car_Cleanliness",        "C6 83 ?? 0A 00 00 01"),
+
+                // --- Drone mode ---
+                ("DroneMaxHeight",         "F3 0F 11 83 ?? 0C 00 00 0F 57"),
+
+                // --- Nitrous / Boost ---
+                ("Nitrous_fill",           "F3 0F 58 83 ?? 03 00 00 F3 0F"),
+                ("Nitrous_drain",          "F3 0F 5C 83 ?? 03 00 00 0F 2F"),
+
+                // --- Player position (for teleport improvement) ---
+                ("PlayerPos_X_write",      "F3 0F 11 87 80 02 00 00"),
+                ("PlayerPos_Y_write",      "F3 0F 11 87 84 02 00 00"),
+                ("PlayerPos_Z_write",      "F3 0F 11 87 88 02 00 00"),
+
+                // --- Game state ---
+                ("RaceFinish",             "C6 83 ?? ?? 00 00 01 48 8B"),
+                ("GodMode",                "0F 57 C0 F3 0F 11 83 ?? 02 00 00"),
+
+                // --- More ForzaMods patterns ---
+                ("Wheelspeed_read",        "F3 0F 10 83 ?? 01 00 00 0F 57"),
+                ("RPM_read",               "F3 0F 10 83 ?? 04 00 00 F3 0F"),
+                ("Gear_read",              "8B 83 ?? 04 00 00 89"),
+                ("Fuel_level",             "F3 0F 10 83 ?? 05 00 00"),
+                ("Damage_write",           "89 83 ?? 02 00 00 48 8B"),
+
+                // --- FH6-specific broad patterns ---
+                ("LocalPlayer_base1",      "48 8B 0D ?? ?? ?? ?? 48 85 C9 74 ?? 48 8B 89 ?? ?? 00 00"),
+                ("LocalPlayer_base2",      "48 8B 05 ?? ?? ?? ?? 48 85 C0 74 ?? 48 8B 88 ?? ?? 00 00"),
+                ("ProfileStruct_base",     "48 8B 0D ?? ?? ?? ?? 48 8B D7 48 8B 01 FF 50 ?? 48 8B C8"),
             };
 
-            using var scanner = new Scanner(buf);
-            int found = 0, missing = 0;
+            int found = 0, miss = 0;
+            Log($"{"PATTERN",-30} {"STATUS",-8} {"ADDRESS"}");
+            Log(new string('-', 80));
 
-            Log($"{"CHEAT",-28} {"STATUS",-8} {"ADDRESS"}");
-            Log(new string('-', 70));
-
-            foreach (var (name, pattern) in patterns)
+            foreach (var (name, pattern) in newCheats)
             {
                 var result = scanner.FindPattern(pattern);
                 var hit = result.Found;
-                if (hit) found++; else missing++;
+                if (hit) found++; else miss++;
                 var offset = hit ? (int)result.Offset : -1;
                 var addr = hit ? $"0x{baseAddr.ToInt64() + offset:X}" : "---";
-                Log($"{name,-28} {(hit ? "OK" : "MISS"),-8} {addr}");
+                Log($"{name,-30} {(hit ? "OK" : "MISS"),-8} {addr}");
 
                 if (hit)
                 {
-                    // Dump 80 bytes at match for verification
-                    var len = Math.Min(80, buf.Length - offset);
-                    var hex = Convert.ToHexString(buf.AsSpan(offset, len));
-                    Log($"  {hex}");
+                    var len = Math.Min(64, buf.Length - offset);
+                    Log($"  {Convert.ToHexString(buf.AsSpan(offset, len))}");
                 }
-                Log("");
             }
+            Log($"\nNEW CHEATS: {found} FOUND, {miss} MISS\n");
 
-            Log($"SUMMARY: {found} FOUND, {missing} MISSING / {patterns.Length} total");
+            // =====================================================
+            // PART 2: CRC / INTEGRITY CHECK PATTERNS
+            // =====================================================
+            Log("========== CRC / INTEGRITY MECHANISMS ==========\n");
 
-            // === STEP 2: Broader search for missing patterns ===
-            // Try alternate/shorter patterns for the 7 misses
-            Log("\n\n=== BROADER SEARCH FOR MISSING PATTERNS ===\n");
-
-            var broadSearches = new (string Name, string Pattern)[]
+            var crcPatterns = new (string Name, string Pattern)[]
             {
-                // Teleport: search for movups with large offsets (0x230, 0x240)
-                ("Teleport_alt1", "0F 10 ?? 30 02 00 00"),
-                ("Teleport_alt2", "0F 10 ?? 40 02 00 00"),
-                ("Teleport_alt3", "0F 10 ?? 20 02 00 00"),
-                // SkillScore: search for mov edi,[rax+8]
-                ("SkillScore_alt1", "8B 78 08 48 8B"),
-                // PrizeScale: search for movss xmm6,[rbx+10]
-                ("PrizeScale_alt1", "F3 0F 10 73 10"),
-                // SpeedZone: divss xmm6,[r14+E8]
-                ("SpeedZone_alt1", "F3 41 0F 5E B6 E8 00 00 00"),
-                // FreeClothing: mov ecx,[rax+A4]
-                ("FreeClothing_alt1", "8B 88 A4 00 00 00"),
-                // Shorter CDatabase patterns
-                ("CDatabase_alt1", "48 8B 0D ?? ?? ?? ?? 48 8B 01 4C 8D 45"),
+                // Common CRC32 computation patterns
+                ("CRC32_table_access",     "8B 04 ?? 8D ?? ?? ?? 33 C0 8B"),
+                ("CRC32_compute_1",        "C1 E0 08 33 04 ?? 8B ?? C1 E8 08"),
+                ("CRC32_compute_2",        "33 D2 8B C8 C1 E8 08 8B 04 ?? 33"),
+                ("CRC32_poly",             "83 E0 01 74 ?? 33 05 ?? ?? ?? ??"),
+
+                // Memory integrity scan patterns
+                ("HashScan_loop",          "48 8D ?? ?? ?? ?? ?? 48 8B ?? 48 8B ?? FF 50"),
+                ("IntegrityCheck_call",    "E8 ?? ?? ?? ?? 85 C0 74 ?? 48 8B"),
+                ("MemCmp_check",           "E8 ?? ?? ?? ?? 48 8B ?? 48 8B ?? E8 ?? ?? ?? ?? 85 C0"),
+                ("Checksum_verify",        "48 8B ?? 48 8B ?? E8 ?? ?? ?? ?? 84 C0 74"),
+                ("PageHash_start",         "48 83 EC ?? 48 8B ?? BA ?? ?? ?? ?? 48 8B"),
+
+                // VTable integrity patterns
+                ("VTable_read_funcptr",    "48 8B 01 FF 50 ?? 48 8B ?? 48 8B ?? FF 50"),
+                ("VTable_swap_detect",     "48 8B ?? 48 8B ?? 48 3B ?? 74 ?? 48 89"),
+
+                // Anti-tamper patterns
+                ("CodeSection_verify",     "48 8D ?? ?? ?? ?? ?? 48 8B ?? BA ?? ?? ?? ?? E8"),
+                ("TextSection_hash",       "48 8D 15 ?? ?? ?? ?? 48 8B ?? FF 15 ?? ?? ?? ??"),
+                ("FuncPrologue_check",     "80 ?? ?? ?? ?? ?? 48 89 ?? 74 ?? 48 89"),
+                ("RevertPatch_detect",     "48 8B ?? 48 39 ?? 74 ?? 48 89 ?? E8 ?? ?? ?? ??"),
+
+                // Save/load patterns
+                ("SaveState_write",        "48 8B ?? 48 8B ?? E8 ?? ?? ?? ?? 48 8B ?? C6 83"),
+                ("ProfileWrite_call",      "E8 ?? ?? ?? ?? 48 8B ?? 48 8B ?? C6 83 ?? ?? 00 00 01"),
+                ("AutoSave_trigger",       "C7 83 ?? ?? 00 00 01 00 00 00 48 8B"),
+                ("RestoreOriginal_1",      "48 8B ?? 48 8B ?? 48 8B ?? E8 ?? ?? ?? ?? 90 90"),
+                ("SelfHeal_writeback",     "48 8B ?? 48 8B ?? 48 89 ?? 48 89 ?? 48 89"),
+
+                // Timer-based re-check patterns
+                ("PeriodicTimer_1",        "FF 15 ?? ?? ?? ?? 48 8B ?? 48 85 C0 74 ?? FF 15"),
+                ("PeriodicTimer_2",        "48 8B ?? BA ?? ?? ?? ?? FF 15 ?? ?? ?? ?? 48 8B"),
+                ("Watchdog_check",         "48 8B ?? 83 ?? 01 7E ?? E8 ?? ?? ?? ?? 48 8B"),
             };
 
-            foreach (var (name, pattern) in broadSearches)
+            int crcFound = 0, crcMiss = 0;
+            Log($"{"PATTERN",-30} {"STATUS",-8} {"ADDRESS"}");
+            Log(new string('-', 80));
+
+            foreach (var (name, pattern) in crcPatterns)
+            {
+                var result = scanner.FindPattern(pattern);
+                var hit = result.Found;
+                if (hit) crcFound++; else crcMiss++;
+                var offset = hit ? (int)result.Offset : -1;
+                var addr = hit ? $"0x{baseAddr.ToInt64() + offset:X}" : "---";
+                Log($"{name,-30} {(hit ? "OK" : "MISS"),-8} {addr}");
+
+                if (hit)
+                {
+                    var len = Math.Min(96, buf.Length - offset);
+                    Log($"  {Convert.ToHexString(buf.AsSpan(offset, len))}");
+                }
+            }
+            Log($"\nCRC/STABILITY: {crcFound} FOUND, {crcMiss} MISS\n");
+
+            // =====================================================
+            // PART 3: FIND ALL LOCAL PLAYER REFERENCES
+            // =====================================================
+            Log("========== LOCAL PLAYER BASE ADDRESSES ==========\n");
+
+            // The current CRC bypass swaps vtable[9]. Let's find all code that
+            // reads vtable entries — if the game checks other vtable indices,
+            // we need to know.
+            var vtablePatterns = new (string Name, string Pattern)[]
+            {
+                // CDatabase vtable reads (index 9 = offset 0x48)
+                ("VT_CDB_idx9_A",         "FF 50 48 90"),
+                ("VT_CDB_idx9_B",         "FF 90 48 01 00 00"),
+                ("VT_CDB_idx9_C",         "FF 50 48 48 8B"),
+
+                // Common vtable calls in Forza
+                ("VT_call_idx8",          "FF 50 40"),
+                ("VT_call_idx10",         "FF 50 50"),
+                ("VT_call_idx11",         "FF 50 58"),
+                ("VT_call_idx12",         "FF 50 60"),
+
+                // Functions that restore original bytes
+                ("Restore_memcpy",        "E8 ?? ?? ?? ?? 90 48 8B ?? 48 8B ?? 48 89"),
+                ("Patch_apply",           "48 89 ?? 48 89 ?? 48 89 ?? 48 89 ?? 90"),
+            };
+
+            foreach (var (name, pattern) in vtablePatterns)
             {
                 var result = scanner.FindPattern(pattern);
                 var hit = result.Found;
                 var offset = hit ? (int)result.Offset : -1;
-                Log($"{name,-28} {(hit ? "OK" : "MISS"),-8} {(hit ? $"0x{baseAddr.ToInt64() + offset:X}" : "---")}");
+                var addr = hit ? $"0x{baseAddr.ToInt64() + offset:X}" : "---";
+                Log($"{name,-30} {(hit ? "OK" : "MISS"),-8} {addr}");
                 if (hit)
                 {
-                    // Dump surrounding context: 32 bytes before, 80 after
-                    var start = Math.Max(0, offset - 32);
-                    var len = Math.Min(144, buf.Length - start);
-                    var hex = Convert.ToHexString(buf.AsSpan(start, len));
-                    // Mark the match position
-                    var marker = new string(' ', (offset - start) * 2) + "^MATCH";
-                    Log($"  {hex}");
-                    Log($"  {marker}");
+                    var len = Math.Min(64, buf.Length - offset);
+                    Log($"  {Convert.ToHexString(buf.AsSpan(offset, len))}");
                 }
-                Log("");
             }
 
-            // === STEP 3: Dump ExpectedOriginal verification ===
-            Log("\n=== EXPECTEDORIGINAL VERIFICATION ===\n");
-            var verifications = new (string Name, string Pattern, byte[] Expected)[]
-            {
-                ("Credits", "E8 ?? ?? ?? ?? 89 84 ?? ?? ?? ?? ?? 4C 8D ?? ?? ?? ?? ?? 48 8B", [72, 139, 79, 8, 51, 210]),
-                ("DriftScore", "E8 ?? ?? ?? ?? F3 0F ?? ?? 0F 28 ?? ?? ?? 0F 28", [243, 15, 88, 247, 15, 40, 124, 36, 32]),
-                ("NoSkillBreak", "0F B6 ?? 40 38 ?? ?? ?? ?? ?? 74 ?? 84 C0", [15, 182, 240, 64, 56, 171, 116, 2, 0, 0]),
-            };
+            // =====================================================
+            // PART 4: BROAD LOCALPLAYER SCAN
+            // =====================================================
+            Log("\n========== BROAD LOCALPLAYER/PROFILE SCAN ==========\n");
 
-            foreach (var (name, pattern, expected) in verifications)
+            // Search for the instruction pattern that paris' club's CRC bypass hooks
+            // "48 8B 01 FF 50 48 90" = mov rax,[rcx]; call [rax+0x48]; nop
+            // This is what we swap for our CRC bypass
+            var crcBypassTarget = scanner.FindPattern("48 8B 01 FF 50 48 90 48 8B");
+            if (crcBypassTarget.Found)
             {
-                var result = scanner.FindPattern(pattern);
-                if (!result.Found) { Log($"{name}: pattern not found, skipping"); continue; }
-                var offset = (int)result.Offset + 24; // MatchOffset for Credits
-                if (name == "DriftScore") offset = (int)result.Offset + 5;
-                if (name == "NoSkillBreak") offset = (int)result.Offset;
-                var actual = buf.Skip(offset).Take(expected.Length).ToArray();
-                var match = actual.SequenceEqual(expected);
-                Log($"{name}: offset +{(int)result.Offset}, hookAt +{offset}");
-                Log($"  Expected: {Convert.ToHexString(expected)}");
-                Log($"  Actual:   {Convert.ToHexString(actual)}");
-                Log($"  Match: {(match ? "YES" : "NO - NEEDS UPDATE")}\n");
+                var off = (int)crcBypassTarget.Offset;
+                Log($"CRC_BYPASS_TARGET at 0x{baseAddr.ToInt64() + off:X}");
+                Log($"  {Convert.ToHexString(buf.AsSpan(off, 64))}");
             }
+            else
+            {
+                Log("CRC_BYPASS_TARGET: MISS (pattern changed!)");
+            }
+
+            // Search for the two-phase dance entry point
+            // The CRC bypass restores originals, waits, then re-applies
+            var twoPhase = scanner.FindPattern("48 89 ?? 48 89 ?? 48 89 ?? 48 89 ?? C7 83");
+            if (twoPhase.Found)
+            {
+                var off = (int)twoPhase.Offset;
+                Log($"TWO_PHASE_ENTRY at 0x{baseAddr.ToInt64() + off:X}");
+                Log($"  {Convert.ToHexString(buf.AsSpan(off, 80))}");
+            }
+
+            Log($"\nScan complete.");
         }
         finally { CloseHandle(handle); }
 
         File.WriteAllText("scan_results.txt", output.ToString());
-        Console.WriteLine($"\nSaved to scan_results.txt");
+        Console.WriteLine("\nSaved to scan_results.txt");
     }
 }

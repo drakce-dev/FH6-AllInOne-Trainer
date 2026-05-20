@@ -144,6 +144,42 @@ internal static class Native
     public const uint TOKEN_QUERY = 0x0008;
     public const string SE_DEBUG_NAME = "SeDebugPrivilege";
 
+    // ===== Thread suspension — used by CRC heartbeat to prevent race conditions =====
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr CreateToolhelp32Snapshot(uint dwFlags, uint th32ProcessID);
+
+    public const uint TH32CS_SNAPTHREAD = 0x00000004;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct THREADENTRY32
+    {
+        public uint dwSize;
+        public uint cntUsage;
+        public uint th32ThreadID;
+        public uint th32OwnerProcessID;
+        public uint tpBasePri;
+        public uint tpDeltaPri;
+        public uint dwFlags;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool Thread32First(IntPtr hSnapshot, ref THREADENTRY32 lpte);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool Thread32Next(IntPtr hSnapshot, ref THREADENTRY32 lpte);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr OpenThread(uint dwDesiredAccess, bool bInheritHandle, uint dwThreadId);
+
+    public const uint THREAD_SUSPEND_RESUME = 0x0002;
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern int SuspendThread(IntPtr hThread);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern int ResumeThread(IntPtr hThread);
+
     public static bool IsReadable(uint protect)
     {
         if ((protect & PAGE_NOACCESS) != 0 || (protect & PAGE_GUARD) != 0) return false;

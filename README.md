@@ -73,15 +73,12 @@ Each LOCK toggle re-applies its SQL every 10 seconds. Backup tables are created 
 ## 🛡️ Stability & Anti-Detection
 
 - **CRC bypass** auto-armed before any hook (vtable function pointer swap + 10s re-arm timer)
+- **Dedicated RET stub** — the CRC bypass allocates its own `RET` instruction in cave memory instead of scavenging a random byte from the game binary (eliminates false-positive crashes from the old approach)
+- **Thread-safe patching** — all FH6 threads are suspended during both phases of the CRC heartbeat dance, preventing race conditions where the game could see partially-patched code
 - **Hook self-healing** — every 10s the engine re-applies patches the game tries to roll back
 - **ExpectedOriginal sanity check** — refuses to inject if target bytes don't match (no crashes from outdated signatures)
 - **Auto-detach** when the game exits or crashes — no writes to dead processes
 - **Two-phase CRC dance** — restores originals for 1 second so the game's integrity check passes, then re-applies patches
-
-## ⚠️ Broken (game patched)
-
-- Drift Score Multiplier
-- No Skill Break
 
 ## 🔧 Build from Source
 
@@ -111,4 +108,4 @@ GPL-3.0 — source must remain open. See [LICENSE](LICENSE).
 
 ---
 
-**FH6 All-in-One Trainer** · v4.0.0 · 2026 · GPL-3.0 · Solo / Free Roam only
+**FH6 All-in-One Trainer** · v4.2.0 · 2026 · GPL-3.0 · Solo / Free Roam only

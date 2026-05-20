@@ -24,6 +24,7 @@ public sealed class RuntimeHookEngine : IDisposable
     private ulong _crcFunctionPointerAddress;
     private ulong _crcOriginalPointer;
     private ulong _crcRetAddress;
+    private ulong _crcRetStubAddress;
     private Timer? _crcTimer;
     private int _crcTimerRunning;
 
@@ -177,6 +178,7 @@ public sealed class RuntimeHookEngine : IDisposable
         StopCrcTimer();
         RestoreRuntimeProfileHooks();
         RestoreCrcPointer();
+        FreeCrcRetStub();
 
         _process?.Dispose();
         _process = null;
@@ -225,6 +227,14 @@ public sealed class RuntimeHookEngine : IDisposable
         try { WriteUInt64(_crcFunctionPointerAddress, _crcOriginalPointer); }
         catch (Exception ex) { L($"CRC pointer restore failed: {ex.Message}"); }
         _crcBypassActive = false;
+    }
+
+    private void FreeCrcRetStub()
+    {
+        if (_crcRetStubAddress == 0 || _handle == IntPtr.Zero) return;
+        try { Native.VirtualFreeEx(_handle, new IntPtr((long)_crcRetStubAddress), UIntPtr.Zero, Native.MEM_RELEASE); }
+        catch { }
+        _crcRetStubAddress = 0;
     }
 
     // ===== Profile hooks (Credits / Wheelspins / SP / Drift / NoSkillBreak / Sell) =====
@@ -407,28 +417,34 @@ public sealed class RuntimeHookEngine : IDisposable
         var bytes = ReadBytes(_mainBase, _mainSize);
         if (bytes.Length == 0) throw new InvalidOperationException("Could not read main module for CRC bypass.");
 
-        var retOff = FindFirstExecutablePatternOffset(bytes, "C3");
-        if (retOff < 0) throw new InvalidOperationException("CRC bypass ret-stub not found.");
-
+        // Allocate a dedicated RET stub in our own cave memory instead of scavenging
+        // a random C3 byte from the game's .text section (which is fragile — the byte
+        // could be in the middle of an instruction, or the game could verify that the
+        // CRC function pointer falls within expected code ranges).
         var crcOff = FindFirstPatternOffset(bytes, "48 8B D9 48 8D 05 ? ? ? ? 48 89 01 E8 ? ? ? ? 48 8B CB 48 83 C4 20 5B E9");
         if (crcOff < 0) throw new InvalidOperationException("CRC bypass signature not found (FH6 likely updated).");
 
         var sigAddr = _mainBase + (ulong)crcOff;
-        var leaStart = sigAddr + 3;                                   // skip 48 8B D9
-        var leaDisp = ReadInt32(leaStart + 3);                        // 48 8D 05 <disp32>
+        var leaStart = sigAddr + 3;
+        var leaDisp = ReadInt32(leaStart + 3);
         var tableBase = leaStart + 7 + (ulong)leaDisp;
         var fnPtrAddr = tableBase + 48;
         var origFnPtr = ReadUInt64(fnPtrAddr);
         if (origFnPtr == 0) throw new InvalidOperationException("CRC function pointer is zero.");
-        var retAddr = _mainBase + (ulong)retOff;
 
-        WriteUInt64(fnPtrAddr, retAddr);
+        // Allocate a small cave near the CRC table for our RET stub.
+        // This is much more stable than using a random C3 in the game binary.
+        var retStubAddr = AllocateNear(fnPtrAddr, 4096);
+        WriteBytes(retStubAddr, [0xC3]); // single RET instruction
+
+        WriteUInt64(fnPtrAddr, retStubAddr);
         _crcFunctionPointerAddress = fnPtrAddr;
         _crcOriginalPointer = origFnPtr;
-        _crcRetAddress = retAddr;
+        _crcRetAddress = retStubAddr;
+        _crcRetStubAddress = retStubAddr;
         _crcBypassActive = true;
         StartCrcTimer();
-        L($"CRC bypass armed. ptr=0x{fnPtrAddr:X}, ret=0x{retAddr:X}");
+        L($"CRC bypass armed. ptr=0x{fnPtrAddr:X}, ret-stub=0x{retStubAddr:X} (dedicated cave)");
     }
 
     private void StartCrcTimer()
@@ -437,22 +453,23 @@ public sealed class RuntimeHookEngine : IDisposable
     }
 
     /// <summary>
-    /// Authentic autoshow v1.3.0 dance:
-    /// 1) Restore originals (hooks + CRC pointer) — give the game ~1s to run its own
-    ///    integrity checks and pass them cleanly.
-    /// 2) Re-apply patches.
-    /// Without this window the game's own CRC self-check destabilizes or aborts
-    /// because it can never see legitimate code.
+    /// CRC heartbeat re-arm with thread suspension for atomic patching.
+    /// Phase 1: Suspend all FH6 threads, restore original bytes + CRC pointer atomically,
+    ///          resume threads. Game sees clean code for ~1s.
+    /// Phase 2: Suspend threads, re-apply all patches + CRC bypass, resume threads.
+    /// Thread suspension prevents the game from running partial integrity checks
+    /// while we're mid-patch (which caused false positives in the old approach).
     /// </summary>
     private void CrcTimerTick(object? _)
     {
         if (Interlocked.Exchange(ref _crcTimerRunning, 1) == 1) return;
         try
         {
-            // Phase 1: show originals
+            // Phase 1: restore originals atomically (all threads suspended)
             lock (_lock)
             {
                 if (!_crcBypassActive || _handle == IntPtr.Zero || _process?.HasExited != false) return;
+                var threads = SuspendAllGameThreads();
                 try
                 {
                     foreach (var det in _hooks.Values)
@@ -460,15 +477,17 @@ public sealed class RuntimeHookEngine : IDisposable
                     WriteUInt64(_crcFunctionPointerAddress, _crcOriginalPointer);
                 }
                 catch (Exception ex) { L($"CRC phase-1 (restore) failed: {ex.Message}"); return; }
+                finally { ResumeAllGameThreads(threads); }
             }
 
-            // Give the game a window to verify cleanly
+            // Give the game a window to run its integrity checks cleanly
             Thread.Sleep(1000);
 
-            // Phase 2: re-apply patches
+            // Phase 2: re-apply patches atomically (all threads suspended)
             lock (_lock)
             {
                 if (!_crcBypassActive || _handle == IntPtr.Zero || _process?.HasExited != false) return;
+                var threads = SuspendAllGameThreads();
                 try
                 {
                     WriteUInt64(_crcFunctionPointerAddress, _crcRetAddress);
@@ -476,10 +495,58 @@ public sealed class RuntimeHookEngine : IDisposable
                         WriteProtectedBytes(det.Address, det.Patch);
                 }
                 catch (Exception ex) { L($"CRC phase-2 (re-apply) failed: {ex.Message}"); }
+                finally { ResumeAllGameThreads(threads); }
             }
         }
         catch (Exception ex) { L($"CRC tick uncaught: {ex.Message}"); }
         finally { Interlocked.Exchange(ref _crcTimerRunning, 0); }
+    }
+
+    /// <summary>
+    /// Suspend all threads in the target process and return their handles for later resumption.
+    /// We use THREAD_SUSPEND_RESUME access (not THREAD_ALL_ACCESS) to minimize privilege requirements.
+    /// </summary>
+    private List<IntPtr> SuspendAllGameThreads()
+    {
+        var handles = new List<IntPtr>();
+        if (_process == null) return handles;
+
+        var pid = (uint)_process.Id;
+        var snap = Native.CreateToolhelp32Snapshot(Native.TH32CS_SNAPTHREAD, 0);
+        if (snap == IntPtr.Zero || snap == new IntPtr(-1)) return handles;
+
+        try
+        {
+            var te = new Native.THREADENTRY32 { dwSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<Native.THREADENTRY32>() };
+            if (!Native.Thread32First(snap, ref te)) return handles;
+
+            do
+            {
+                if (te.th32OwnerProcessID != pid) continue;
+                var hThread = Native.OpenThread(Native.THREAD_SUSPEND_RESUME, false, te.th32ThreadID);
+                if (hThread == IntPtr.Zero) continue;
+                Native.SuspendThread(hThread);
+                handles.Add(hThread);
+            } while (Native.Thread32Next(snap, ref te));
+        }
+        finally
+        {
+            Native.CloseHandle(snap);
+        }
+        return handles;
+    }
+
+    private void ResumeAllGameThreads(List<IntPtr> handles)
+    {
+        foreach (var h in handles)
+        {
+            try
+            {
+                Native.ResumeThread(h);
+                Native.CloseHandle(h);
+            }
+            catch { }
+        }
     }
 
     // ===== low-level read/write/alloc =====
@@ -570,16 +637,6 @@ public sealed class RuntimeHookEngine : IDisposable
     {
         var pat = Pattern.Parse(sig);
         foreach (var o in Pattern.FindAll(data, pat, 1)) return o;
-        return -1;
-    }
-
-    private int FindFirstExecutablePatternOffset(byte[] data, string sig)
-    {
-        var pat = Pattern.Parse(sig);
-        foreach (var o in Pattern.FindAll(data, pat, 512))
-        {
-            if (IsExecutableAddress(_mainBase + (ulong)o)) return o;
-        }
         return -1;
     }
 
