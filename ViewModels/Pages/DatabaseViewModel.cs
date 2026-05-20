@@ -10,9 +10,10 @@ namespace FH6Mod.ViewModels.Pages;
 public partial class DatabaseViewModel : PageViewModelBase
 {
     private readonly CheatService _cheats;
+    private readonly GameProcessService _game;
 
     public override string PageTitle => "Database";
-    public override string PageSubtitle => "Direct SQL writes to the game's in-memory CDatabase. One-shot actions — apply once, effect persists for the session.";
+    public override string PageSubtitle => "Direct SQL writes to the game's in-memory CDatabase.";
     public override MaterialIconKind PageIcon => MaterialIconKind.DatabaseEditOutline;
 
     [ObservableProperty] private string? _statusMessage;
@@ -23,13 +24,30 @@ public partial class DatabaseViewModel : PageViewModelBase
     [ObservableProperty] private bool _isAutoshowLockOn;
     [ObservableProperty] private bool _isInstallFlagsLockOn;
 
-    public DatabaseViewModel() : this(App.Services.GetRequiredService<CheatService>()) { }
-    public DatabaseViewModel(CheatService cheats)
+    [ObservableProperty] private bool _canToggle;
+
+    public DatabaseViewModel() : this(
+        App.Services.GetRequiredService<CheatService>(),
+        App.Services.GetRequiredService<GameProcessService>()) { }
+    public DatabaseViewModel(CheatService cheats, GameProcessService game)
     {
         _cheats = cheats;
+        _game = game;
+        _game.StatusChanged += OnGameStatusChanged;
+        CanToggle = _game.IsAttached;
         IsFreeCarsLockOn      = _cheats.IsSqlLockActive(SqlFeature.FreeCarPrices);
         IsAutoshowLockOn      = _cheats.IsSqlLockActive(SqlFeature.AutoshowUnlock);
         IsInstallFlagsLockOn  = _cheats.IsSqlLockActive(SqlFeature.InstallFlags);
+    }
+
+    private void OnGameStatusChanged()
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            CanToggle = _game.IsAttached;
+            if (!CanToggle)
+                StatusMessage = "FH6 is not running — start the game first.";
+        });
     }
 
     private void Run(SqlFeature f, string label)

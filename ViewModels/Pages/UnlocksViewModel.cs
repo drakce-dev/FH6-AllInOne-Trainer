@@ -13,6 +13,7 @@ namespace FH6Mod.ViewModels.Pages;
 public partial class UnlocksViewModel : PageViewModelBase
 {
     private readonly CheatService _cheats;
+    private readonly GameProcessService _game;
 
     public override string PageTitle => "Unlocks";
     public override string PageSubtitle => "All cheats in one place.";
@@ -21,6 +22,9 @@ public partial class UnlocksViewModel : PageViewModelBase
     [ObservableProperty] private string? _statusMessage;
     [ObservableProperty] private bool _statusIsError;
     [ObservableProperty] private string? _diagnosticsMessage;
+
+    // Controls whether toggle switches are enabled (disabled when game is not running)
+    [ObservableProperty] private bool _canToggle;
 
     // --- Profile values ---
     [ObservableProperty] private bool _isCreditsOn;
@@ -61,9 +65,26 @@ public partial class UnlocksViewModel : PageViewModelBase
     [ObservableProperty] private bool _isNoSkillBreakOn;
 
     public UnlocksViewModel()
-        : this(App.Services.GetRequiredService<CheatService>()) { }
+        : this(App.Services.GetRequiredService<CheatService>(),
+               App.Services.GetRequiredService<GameProcessService>()) { }
 
-    public UnlocksViewModel(CheatService cheats) => _cheats = cheats;
+    public UnlocksViewModel(CheatService cheats, GameProcessService game)
+    {
+        _cheats = cheats;
+        _game = game;
+        _game.StatusChanged += OnGameStatusChanged;
+        CanToggle = _game.IsAttached;
+    }
+
+    private void OnGameStatusChanged()
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            CanToggle = _game.IsAttached;
+            if (!CanToggle)
+                StatusMessage = "FH6 is not running — start the game first.";
+        });
+    }
 
     private static int Parse(string s, int fallback)
         => int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) ? n : fallback;

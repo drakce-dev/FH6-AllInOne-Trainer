@@ -30,6 +30,77 @@ public sealed class RuntimeHookEngine : IDisposable
     public bool IsAttached => _handle != IntPtr.Zero && _process is { HasExited: false };
     public List<string> Log { get; } = new();
 
+    /// <summary>
+    /// Test all known signatures against the current FH6 binary without installing hooks.
+    /// Returns (feature, found: bool, detail: string) for each.
+    /// </summary>
+    public List<(RuntimeProfileFeature Feature, bool Found, string Detail)> ScanAllSignatures()
+    {
+        var results = new List<(RuntimeProfileFeature, bool, string)>();
+        if (!IsAttached || _mainBase == 0 || _mainSize <= 0)
+        {
+            foreach (RuntimeProfileFeature f in Enum.GetValues<RuntimeProfileFeature>())
+                results.Add((f, false, "Not attached"));
+            return results;
+        }
+
+        var moduleBytes = ReadBytes(_mainBase, _mainSize);
+        if (moduleBytes.Length == 0)
+        {
+            foreach (RuntimeProfileFeature f in Enum.GetValues<RuntimeProfileFeature>())
+                results.Add((f, false, "Could not read module"));
+            return results;
+        }
+
+        foreach (RuntimeProfileFeature f in Enum.GetValues<RuntimeProfileFeature>())
+        {
+            try
+            {
+                var desc = ProfileFeatureCatalog.Get(f);
+                var pattern = Pattern.Parse(desc.Signature);
+                bool found = false;
+                string detail = "Signature not found";
+
+                foreach (var off in Pattern.FindAll(moduleBytes, pattern, 128))
+                {
+                    ulong hookAddr;
+                    if (desc.ResolveCallTarget)
+                    {
+                        var callAddr = _mainBase + (ulong)off;
+                        var head = ReadBytes(callAddr, 5);
+                        if (head.Length < 5 || head[0] != 0xE8) continue;
+                        var rel = BitConverter.ToInt32(head, 1);
+                        hookAddr = (ulong)((long)(callAddr + 5) + rel + desc.CallTargetOffset);
+                    }
+                    else
+                    {
+                        hookAddr = (ulong)((long)_mainBase + off + desc.MatchOffset);
+                    }
+
+                    var original = ReadBytes(hookAddr, desc.HookSize);
+                    if (original.Length < desc.HookSize) continue;
+
+                    if (BytesStartWith(original, desc.ExpectedOriginal))
+                    {
+                        found = true;
+                        detail = $"Match @ 0x{hookAddr:X}";
+                        break;
+                    }
+
+                    if (original.Length > 0 && original[0] == 0xE9)
+                        detail = "Already patched by another tool";
+                }
+
+                results.Add((f, found, detail));
+            }
+            catch (Exception ex)
+            {
+                results.Add((f, false, ex.Message));
+            }
+        }
+        return results;
+    }
+
     // ===== Public surface for sibling subsystems (e.g. SqlExecutor) =====
     public IntPtr HandlePublic => _handle;
     public ulong  MainBase     => _mainBase;

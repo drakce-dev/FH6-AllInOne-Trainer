@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using FH6Mod.Cheats.RuntimeHook;
 using FH6Mod.Cheats.Sql;
 
@@ -131,4 +133,11 @@ public sealed class CheatService : IDisposable
     }
 
     public bool IsSqlLockActive(SqlFeature feature) => _sql.IsLockActive(feature);
+
+    public List<(RuntimeProfileFeature Feature, bool Found, string Detail)> ScanAllSignatures()
+    {
+        if (!EnsureAttached()) return Enum.GetValues<RuntimeProfileFeature>()
+            .Select(f => (f, false, "Not attached")).ToList();
+        return _engine.ScanAllSignatures();
+    }
 }

@@ -1,18 +1,24 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace FH6Mod.Services;
 
-/// <summary>
-/// Monitors Forza Horizon 6 process: attach/detach lifecycle, exposes PID + base address.
-/// Polled every 2s on a background timer.
-/// </summary>
 public sealed class GameProcessService : IDisposable
 {
     public const string ProcessName = "ForzaHorizon6";
+
+    // Known trainer process names to detect conflicts
+    private static readonly HashSet<string> KnownTrainers = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Forza-Mods-AIO", "ForzaModsAIO", "Chaarkors-FH6-Trainer", "ChaarkorsFH6Mod",
+        "AutoshowUnlocker", "FH6AutoshowUnlocker", "FH6Trainer",
+        "flingtrainer", "trainer", "WeMod", "infinitytrainer",
+    };
 
     private readonly Timer _poll;
     private Process? _process;
@@ -25,8 +31,6 @@ public sealed class GameProcessService : IDisposable
     {
         get
         {
-            // Steam build allows managed MainModule; UWP build throws AccessDenied.
-            // We just need a value for the status bar — fall back to zero rather than crash the UI.
             try { return IsAttached && _process!.MainModule is { } m ? m.BaseAddress : IntPtr.Zero; }
             catch { return IntPtr.Zero; }
         }
@@ -58,10 +62,28 @@ public sealed class GameProcessService : IDisposable
             if (was != nowAttached)
                 StatusChanged?.Invoke();
         }
-        catch
+        catch { }
+    }
+
+    public List<string> DetectConflictingTrainers()
+    {
+        var conflicts = new List<string>();
+        try
         {
-            // process queries can race during exit; swallow and try next tick
+            foreach (var proc in Process.GetProcesses())
+            {
+                try
+                {
+                    var name = proc.ProcessName;
+                    if (KnownTrainers.Any(t => name.Contains(t, StringComparison.OrdinalIgnoreCase)))
+                        conflicts.Add($"{name} (PID {proc.Id})");
+                }
+                catch { }
+                finally { proc.Dispose(); }
+            }
         }
+        catch { }
+        return conflicts;
     }
 
     public void Dispose() => _poll.Dispose();

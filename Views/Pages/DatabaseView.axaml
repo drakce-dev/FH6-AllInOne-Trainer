@@ -12,8 +12,17 @@
                 <Button Classes="primary" Padding="16,8" FontSize="13"
                         Content="Unlock Everything"
                         ToolTip.Tip="Free Cars + Install Flags + Autoshow + Clear NEW + Add All Cars"
+                        IsEnabled="{Binding CanToggle}"
                         Command="{Binding UnlockEverythingCommand}" />
             </StackPanel>
+
+            <!-- No game warning -->
+            <Border IsVisible="{Binding !CanToggle}"
+                    Padding="10,6" CornerRadius="6" BorderThickness="1"
+                    Background="#1AFF5555" BorderBrush="#FF5555">
+                <TextBlock Text="FH6 is not running — start the game first."
+                           FontSize="12" Foreground="#FFB4B4" TextWrapping="Wrap" />
+            </Border>
 
             <!-- Status -->
             <Border IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
@@ -46,10 +55,12 @@
                 <TextBlock Grid.Column="0" Text="Free Cars (BaseCost=0)" VerticalAlignment="Center" FontSize="13" />
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
                     <Button Classes="ghost" Content="Apply once" Padding="10,4" FontSize="11"
+                            IsEnabled="{Binding CanToggle}"
                             Command="{Binding FreeCarPricesCommand}" />
                 </StackPanel>
                 <ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
                               IsChecked="{Binding IsFreeCarsLockOn, Mode=OneWay}"
+                              IsEnabled="{Binding CanToggle}"
                               Command="{Binding ToggleFreeCarsLockCommand}" />
             </Grid>
 
@@ -58,10 +69,12 @@
                 <TextBlock Grid.Column="0" Text="Autoshow All Visible" VerticalAlignment="Center" FontSize="13" />
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
                     <Button Classes="ghost" Content="Apply once" Padding="10,4" FontSize="11"
+                            IsEnabled="{Binding CanToggle}"
                             Command="{Binding AutoshowUnlockCommand}" />
                 </StackPanel>
                 <ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
                               IsChecked="{Binding IsAutoshowLockOn, Mode=OneWay}"
+                              IsEnabled="{Binding CanToggle}"
                               Command="{Binding ToggleAutoshowLockCommand}" />
             </Grid>
 
@@ -70,10 +83,12 @@
                 <TextBlock Grid.Column="0" Text="Install Flags" VerticalAlignment="Center" FontSize="13" />
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
                     <Button Classes="ghost" Content="Apply once" Padding="10,4" FontSize="11"
+                            IsEnabled="{Binding CanToggle}"
                             Command="{Binding InstallFlagsCommand}" />
                 </StackPanel>
                 <ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
                               IsChecked="{Binding IsInstallFlagsLockOn, Mode=OneWay}"
+                              IsEnabled="{Binding CanToggle}"
                               Command="{Binding ToggleInstallFlagsLockCommand}" />
             </Grid>
 
@@ -85,7 +100,7 @@
             <Grid ColumnDefinitions="180,*" ColumnSpacing="8" Height="34">
                 <TextBlock Grid.Column="0" Text="Clear NEW! Tag" VerticalAlignment="Center" FontSize="13" />
                 <Button Grid.Column="1" Classes="ghost" Content="Apply" Padding="10,4" FontSize="11"
-                        HorizontalAlignment="Left"
+                        HorizontalAlignment="Left" IsEnabled="{Binding CanToggle}"
                         Command="{Binding ClearNewTagCommand}" />
             </Grid>
 
@@ -93,7 +108,7 @@
             <Grid ColumnDefinitions="180,*" ColumnSpacing="8" Height="34">
                 <TextBlock Grid.Column="0" Text="Add All Cars (free grant)" VerticalAlignment="Center" FontSize="13" />
                 <Button Grid.Column="1" Classes="ghost" Content="Apply" Padding="10,4" FontSize="11"
-                        HorizontalAlignment="Left"
+                        HorizontalAlignment="Left" IsEnabled="{Binding CanToggle}"
                         Command="{Binding AddAllCarsCommand}" />
             </Grid>
 
