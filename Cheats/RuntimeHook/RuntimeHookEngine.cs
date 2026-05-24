@@ -117,6 +117,14 @@ public sealed class RuntimeHookEngine : IDisposable
                         if (!string.IsNullOrEmpty(desc.ContextPattern) && !HasContextPattern(moduleBytes, off, desc.ContextPattern))
                             continue;
 
+                        // Validate struct offset range for MOV/ADD [rbx+disp32] patterns
+                        if (original.Length >= 6 && (original[0] == 0x89 || original[0] == 0x01) && original[1] == 0x83)
+                        {
+                            var so = BitConverter.ToInt32(original, 2);
+                            if (so < 0 || so > 0x2000)
+                                continue;
+                        }
+
                         found = true;
                         var offsetInfo = ExtractStructOffset(original, desc);
                         if (BytesStartWith(original, desc.ExpectedOriginal))
@@ -527,6 +535,17 @@ public sealed class RuntimeHookEngine : IDisposable
                 {
                     L($"{desc.Name}: match at 0x{hookAddr:X} ({label}) — context pattern not found nearby, skipping");
                     continue;
+                }
+
+                // Validate struct offset range for MOV/ADD [rbx+disp32] patterns
+                if (original.Length >= 6 && (original[0] == 0x89 || original[0] == 0x01) && original[1] == 0x83)
+                {
+                    var structOff = BitConverter.ToInt32(original, 2);
+                    if (structOff < 0 || structOff > 0x2000)
+                    {
+                        L($"{desc.Name}: match at 0x{hookAddr:X} ({label}) — struct offset 0x{structOff:X} out of range, skipping");
+                        continue;
+                    }
                 }
 
                 // Extract struct offset from the instruction for diagnostics

@@ -53,10 +53,14 @@ internal sealed class FnvProfileResolver : IDisposable
             return false;
         }
 
-        _engine.LogPublic($"FNV: Credits setter at RVA 0x{setterRva:X}");
+        _engine.LogPublic($"FNV: Credits setter instruction at RVA 0x{setterRva:X}");
 
-        // Scan .text for E8 calls to the setter, then look for global pointer loads
-        var callerGlobals = FindCallerGlobals(moduleBytes, setterRva);
+        // Find the function entry point (callers target the function start, not the instruction)
+        var funcStartRva = FindFunctionStart(moduleBytes, setterRva);
+        _engine.LogPublic($"FNV: Credits setter function starts at RVA 0x{funcStartRva:X}");
+
+        // Scan .text for E8 calls to the setter function, then look for global pointer loads
+        var callerGlobals = FindCallerGlobals(moduleBytes, funcStartRva);
         if (callerGlobals.Count == 0)
         {
             _engine.LogPublic("FNV: No callers with global pointer loads found");
