@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 
 namespace FH6Mod.Cheats.RuntimeHook;
 
@@ -27,6 +28,9 @@ public sealed class RuntimeHookEngine : IDisposable
     private ulong _crcOriginalPointer;
     private ulong _crcRetAddress;
     private ulong _crcRetStubAddress;
+    private Timer? _crcTimer;
+    private int _crcTimerRunning;
+    private static readonly Random _jitter = new();
     private readonly List<IntegrityPatch> _integrityPatches = new();
     private readonly List<(string Name, string Signature, int PatchOffset, int PatchLen, byte[] Expected, byte[] Replace)> _pendingBypasses = new();
     private int _deferredRetryCount;
@@ -224,6 +228,7 @@ public sealed class RuntimeHookEngine : IDisposable
     /// </summary>
     public void Detach()
     {
+        StopCrcTimer();
         RestoreIntegrityBypasses();
         RestoreValueEncryptionBypass();
         RestoreRuntimeProfileHooks();
@@ -245,6 +250,13 @@ public sealed class RuntimeHookEngine : IDisposable
     }
 
     public void Dispose() => Detach();
+
+    private void StopCrcTimer()
+    {
+        var t = _crcTimer;
+        _crcTimer = null;
+        try { t?.Dispose(); } catch { }
+    }
 
     private void RestoreValueEncryptionBypass()
     {
@@ -685,8 +697,7 @@ public sealed class RuntimeHookEngine : IDisposable
         _crcBypassActive = true;
         ApplyIntegrityBypasses(bytes);
         ApplyValueEncryptionBypass(bytes);
-        if (_pendingBypasses.Count > 0)
-            RetryPendingBypasses();
+        StartCrcTimer();
         L($"CRC bypass armed. ptr=0x{fnPtrAddr:X}, ret-stub=0x{retStubAddr:X} (dedicated cave)");
     }
 
@@ -844,6 +855,7 @@ public sealed class RuntimeHookEngine : IDisposable
     /// Retry finding integrity bypasses that failed on the first scan.
     /// Denuvo decrypts code pages on demand — signatures for PageHash/TextHash may only
     /// become visible after the game has run those checks at least once.
+    /// Called from CrcTimerTick before the patch phase.
     /// </summary>
     private void RetryPendingBypasses()
     {
@@ -899,6 +911,219 @@ public sealed class RuntimeHookEngine : IDisposable
 
         if (found.Count > 0)
             L($"Deferred bypass: found {found.Count} new ({_integrityPatches.Count}/5 patched, {_pendingBypasses.Count} pending)");
+    }
+
+    private void StartCrcTimer()
+    {
+        // First tick fires quickly (3s) to establish the clean window early.
+        // Subsequent ticks use a shorter 5s base interval with ±1.5s random jitter
+        // to prevent the game's integrity check from syncing with our timer.
+        _crcTimer ??= new Timer(CrcTimerTick, null, 3_000, Timeout.Infinite);
+    }
+
+    /// <summary>
+    /// CRC heartbeat re-arm with thread suspension for atomic patching.
+    ///
+    /// Timing: 5s base cycle (±1.5s jitter), 2s clean window.
+    /// Old approach was 10s cycle, 1s clean — the game's integrity check had a
+    /// 90% chance of hitting the patched window, causing the game to shut down.
+    /// New approach: ~3s patched / 2s clean = ~60% patched. With jitter the game
+    /// can't predict when patches are visible.
+    ///
+    /// Phase 1: Suspend threads, restore original bytes + CRC pointer atomically, resume.
+    /// Phase 2: Sleep 2s (game runs integrity check and passes).
+    /// Phase 3: Suspend threads, re-apply patches + CRC bypass, resume.
+    /// </summary>
+    private void CrcTimerTick(object? _)
+    {
+        if (Interlocked.Exchange(ref _crcTimerRunning, 1) == 1) return;
+        try
+        {
+            if (!_crcBypassActive || _handle == IntPtr.Zero || _process?.HasExited != false) return;
+            var tickStart = Environment.TickCount64;
+            var hookCount = _hooks.Count;
+            var patchCount = _integrityPatches.Count;
+
+            // Phase 1: restore originals atomically (all threads suspended)
+            lock (_lock)
+            {
+                if (!_crcBypassActive || _handle == IntPtr.Zero || _process?.HasExited != false) return;
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                var threads = SuspendAllGameThreads();
+                try
+                {
+                    var p1Fails = 0;
+                    var p1ProcessDead = false;
+                    foreach (var det in _hooks.Values)
+                    {
+                        try { WriteProtectedBytes(det.Address, det.Original); }
+                        catch (Exception ex)
+                        {
+                            p1Fails++;
+                            L($"CRC p1 restore {det.Name} failed: {ex.Message}");
+                            if (IsProcessDead()) { p1ProcessDead = true; break; }
+                        }
+                    }
+                    if (!p1ProcessDead)
+                    {
+                        foreach (var ip in _integrityPatches)
+                        {
+                            try { WriteProtectedBytes(ip.Address, ip.Original); }
+                            catch (Exception ex)
+                            {
+                                L($"CRC p1 restore bypass {ip.Name} failed: {ex.Message}");
+                                if (IsProcessDead()) { p1ProcessDead = true; break; }
+                            }
+                        }
+                    }
+                    if (!p1ProcessDead)
+                    {
+                        try { WriteUInt64(_crcFunctionPointerAddress, _crcOriginalPointer); }
+                        catch (Exception ex) { L($"CRC p1 restore CRC pointer failed: {ex.Message}"); }
+                    }
+                    sw.Stop();
+                    L($"CRC tick: p1 restore done in {sw.ElapsedMilliseconds}ms (suspended {threads.Count} threads, {hookCount} hooks, {patchCount} bypasses, {p1Fails} hook failures)");
+
+                    // Spike detection: if p1 took too long, abort the tick.
+                    // Originals are restored — this is the safest state. Don't re-apply patches.
+                    if (sw.ElapsedMilliseconds > 500)
+                    {
+                        L($"CRC tick: SPIKE detected ({sw.ElapsedMilliseconds}ms p1) — skipping re-apply to avoid detection");
+                        return;
+                    }
+
+                    // Process death: if the game died during p1, stop the timer.
+                    if (p1ProcessDead || _process?.HasExited != false)
+                    {
+                        L("CRC tick: game process died during p1 — disarming CRC timer");
+                        _crcBypassActive = false;
+                        return;
+                    }
+                }
+                finally { ResumeAllGameThreads(threads); }
+            }
+
+            // Clean window: let the game run integrity checks.
+            // 1500ms gives the game enough time to complete all 5 integrity checks.
+            Thread.Sleep(1500);
+
+            // Retry any integrity bypasses that weren't found initially.
+            if (_pendingBypasses.Count > 0)
+                RetryPendingBypasses();
+
+            // Phase 2: re-apply patches atomically (all threads suspended)
+            lock (_lock)
+            {
+                if (!_crcBypassActive || _handle == IntPtr.Zero || _process?.HasExited != false) return;
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                var threads = SuspendAllGameThreads();
+                try
+                {
+                    var p2Fails = 0;
+                    var p2ProcessDead = false;
+                    try { WriteUInt64(_crcFunctionPointerAddress, _crcRetAddress); }
+                    catch (Exception ex) { L($"CRC p2 CRC pointer failed: {ex.Message}"); p2ProcessDead = IsProcessDead(); }
+                    if (!p2ProcessDead && _valueEncryptionAddr != 0 && _valueEncryptionOriginal.Length > 0)
+                    {
+                        try { WriteProtectedBytes(_valueEncryptionAddr, [0xC3]); }
+                        catch (Exception ex) { L($"CRC p2 value-encryption failed: {ex.Message}"); }
+                    }
+                    if (!p2ProcessDead)
+                    {
+                        foreach (var ip in _integrityPatches)
+                        {
+                            try { WriteProtectedBytes(ip.Address, ip.Replacement); }
+                            catch (Exception ex) { L($"CRC p2 re-apply bypass {ip.Name} failed: {ex.Message}"); if (IsProcessDead()) { p2ProcessDead = true; break; } }
+                        }
+                    }
+                    if (!p2ProcessDead)
+                    {
+                        foreach (var det in _hooks.Values)
+                        {
+                            try { WriteProtectedBytes(det.Address, det.Patch); }
+                            catch (Exception ex) { p2Fails++; L($"CRC p2 re-apply {det.Name} failed: {ex.Message}"); if (IsProcessDead()) { p2ProcessDead = true; break; } }
+                        }
+                    }
+                    sw.Stop();
+                    L($"CRC tick: p2 re-apply done in {sw.ElapsedMilliseconds}ms ({hookCount} hooks, {p2Fails} failures)");
+
+                    if (p2ProcessDead)
+                    {
+                        L("CRC tick: game process died during p2 — disarming CRC timer");
+                        _crcBypassActive = false;
+                    }
+                }
+                finally { ResumeAllGameThreads(threads); }
+            }
+
+            L($"CRC tick: total {Environment.TickCount64 - tickStart}ms");
+        }
+        catch (Exception ex) { L($"CRC tick uncaught: {ex.Message}"); }
+        finally
+        {
+            Interlocked.Exchange(ref _crcTimerRunning, 0);
+            // Reschedule with random jitter: 3.5s base ± 1s
+            // Shorter cycle + longer clean window = patches visible ~43% of time (vs ~86% before)
+            try
+            {
+                var nextMs = 3500 + _jitter.Next(-1000, 1001);
+                _crcTimer?.Change(nextMs, Timeout.Infinite);
+            }
+            catch { /* timer disposed during detach */ }
+        }
+    }
+
+    private bool IsProcessDead()
+    {
+        try { return _process?.HasExited != false; }
+        catch { return true; }
+    }
+
+    /// <summary>
+    /// Suspend all threads in the target process and return their handles for later resumption.
+    /// We use THREAD_SUSPEND_RESUME access (not THREAD_ALL_ACCESS) to minimize privilege requirements.
+    /// </summary>
+    private List<IntPtr> SuspendAllGameThreads()
+    {
+        var handles = new List<IntPtr>();
+        if (_process == null) return handles;
+
+        var pid = (uint)_process.Id;
+        var snap = Native.CreateToolhelp32Snapshot(Native.TH32CS_SNAPTHREAD, 0);
+        if (snap == IntPtr.Zero || snap == new IntPtr(-1)) return handles;
+
+        try
+        {
+            var te = new Native.THREADENTRY32 { dwSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<Native.THREADENTRY32>() };
+            if (!Native.Thread32First(snap, ref te)) return handles;
+
+            do
+            {
+                if (te.th32OwnerProcessID != pid) continue;
+                var hThread = Native.OpenThread(Native.THREAD_SUSPEND_RESUME, false, te.th32ThreadID);
+                if (hThread == IntPtr.Zero) continue;
+                Native.SuspendThread(hThread);
+                handles.Add(hThread);
+            } while (Native.Thread32Next(snap, ref te));
+        }
+        finally
+        {
+            Native.CloseHandle(snap);
+        }
+        return handles;
+    }
+
+    private void ResumeAllGameThreads(List<IntPtr> handles)
+    {
+        foreach (var h in handles)
+        {
+            try
+            {
+                Native.ResumeThread(h);
+                Native.CloseHandle(h);
+            }
+            catch { }
+        }
     }
 
     // ===== low-level read/write/alloc =====
