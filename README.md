@@ -39,18 +39,19 @@ Uses inline code cave hooks with toggle+value slots — based on the paris' club
 ## Anti-Cheat Bypass
 
 - CRC bypass with heartbeat timer + jitter (XXH check pointer replacement)
-- 5/5 integrity check patches (MemCmp, PageHash, TextHash, CodeSection, Checksum)
+- 6/6 integrity check patches (MemCmp, PageHash, TextHash, CodeSection, Checksum, TerminateGuard)
+- **TerminateGuard** — patches the conditional `TerminateProcess` call that caused ~10 minute auto-shutdown
 - Deferred retry for Denuvo-encrypted pages — signatures that aren't available on first scan are retried during the CRC heartbeat
 - Per-hook error handling — if one hook fails (e.g., Denuvo-protected page), other cheats continue working
+- CRC spike detection — aborts tick if Phase 1 restore takes >500ms
+- Process death detection — stops writing to dead process, disarms timer
 - Thread-safe patching with ExpectedOriginal sanity check
 - Pre-resolution: all hook targets are scanned before any hooks are installed
 
 ## Known Limitations
 
-- **Value Encryption bypass signature not found** on latest builds. Some profile value changes may not persist between sessions.
 - **XP / Level modding** is not yet supported. See [issue #19](../../issues/19) for discussion.
 - **Wheelspins dependency** — Super Wheelspins (and possibly Credits) require Wheelspins to be enabled first to take effect.
-- Teleport, Freeze AI, timers, gravity, and other experimental cheats from earlier versions were removed — they used signatures that matched the wrong functions and didn't work reliably.
 
 ## Build from Source
 
