@@ -47,11 +47,6 @@ public sealed class RuntimeHookEngine : IDisposable
     private ulong _valueEncryptionAddr;
     private byte[] _valueEncryptionOriginal = [];
 
-    // IAT-level shutdown hooks — replace TerminateProcess/ExitProcess IAT entries
-    private ulong _terminateStubAddr;
-    private ulong _exitStubAddr;
-    private readonly List<(ulong Address, ulong Original)> _iatPatches = new();
-
     private Action<string>? _onLog;
     public bool IsAttached => _handle != IntPtr.Zero && _process is { HasExited: false };
     public List<string> Log { get; } = new();
@@ -234,7 +229,6 @@ public sealed class RuntimeHookEngine : IDisposable
     public void Detach()
     {
         StopCrcTimer();
-        RestoreShutdownHooks();
         RestoreIntegrityBypasses();
         RestoreValueEncryptionBypass();
         RestoreRuntimeProfileHooks();
@@ -703,7 +697,6 @@ public sealed class RuntimeHookEngine : IDisposable
         _crcBypassActive = true;
         ApplyIntegrityBypasses(bytes);
         ApplyValueEncryptionBypass(bytes);
-        HookShutdownFunctions();
         StartCrcTimer();
         L($"CRC bypass armed. ptr=0x{fnPtrAddr:X}, ret-stub=0x{retStubAddr:X} (dedicated cave)");
     }
@@ -749,120 +742,6 @@ public sealed class RuntimeHookEngine : IDisposable
         if (bytes.Length == 0) return;
 
         ApplyValueEncryptionBypass(bytes);
-    }
-
-    /// <summary>
-    /// Hook TerminateProcess and ExitProcess at the IAT level.
-    /// Replaces their IAT entries with stubs that block self-termination.
-    /// This catches ALL call sites regardless of how the shutdown is triggered.
-    /// </summary>
-    private void HookShutdownFunctions()
-    {
-        var kernel32 = Native.GetModuleHandle("kernel32.dll");
-        if (kernel32 == IntPtr.Zero) { L("Shutdown hook: kernel32 not found"); return; }
-
-        var termProcAddr = (ulong)Native.GetProcAddress(kernel32, "TerminateProcess");
-        var exitProcAddr = (ulong)Native.GetProcAddress(kernel32, "ExitProcess");
-        if (termProcAddr == 0 && exitProcAddr == 0)
-        {
-            L("Shutdown hook: could not resolve shutdown functions");
-            return;
-        }
-
-        L($"Shutdown hook: TerminateProcess=0x{termProcAddr:X}, ExitProcess=0x{exitProcAddr:X}");
-
-        // Allocate stub for TerminateProcess: if handle == -1 (self), return TRUE; else call real function
-        // CMP ECX,-1 / JE skip / JMP [rip+0] / dq realAddr / MOV EAX,1 / RET
-        _terminateStubAddr = AllocateNear(_mainBase, 64);
-        var termStub = new byte[64];
-        termStub[0] = 0x83; termStub[1] = 0xF9; termStub[2] = 0xFF; // CMP ECX, -1
-        termStub[3] = 0x74; termStub[4] = 0x0E;                     // JE +14 (to offset 19)
-        termStub[5] = 0xFF; termStub[6] = 0x25;                     // JMP [RIP+0]
-        termStub[7] = 0x00; termStub[8] = 0x00; termStub[9] = 0x00; termStub[10] = 0x00;
-        BitConverter.TryWriteBytes(termStub.AsSpan(11, 8), (long)termProcAddr);
-        termStub[19] = 0xB8; termStub[20] = 0x01; termStub[21] = 0x00; termStub[22] = 0x00; termStub[23] = 0x00;
-        termStub[24] = 0xC3;
-        WriteBytes(_terminateStubAddr, termStub);
-
-        // Allocate stub for ExitProcess: always return TRUE (block all exit calls)
-        _exitStubAddr = AllocateNear(_mainBase, 64);
-        var exitStub = new byte[64];
-        exitStub[0] = 0xB8; exitStub[1] = 0x01; exitStub[2] = 0x00; exitStub[3] = 0x00; exitStub[4] = 0x00;
-        exitStub[5] = 0xC3;
-        WriteBytes(_exitStubAddr, exitStub);
-
-        // Find IAT by parsing PE headers
-        var dosHeader = ReadBytes(_mainBase, 64);
-        if (dosHeader.Length < 64 || dosHeader[0] != 0x4D || dosHeader[1] != 0x5A)
-        {
-            L("Shutdown hook: invalid DOS header");
-            return;
-        }
-
-        var peOffset = BitConverter.ToInt32(dosHeader, 0x3C);
-        var peHeader = ReadBytes(_mainBase + (ulong)peOffset, 264);
-        if (peHeader.Length < 264 || peHeader[0] != 0x50 || peHeader[1] != 0x45)
-        {
-            L("Shutdown hook: invalid PE header");
-            return;
-        }
-
-        var magic = BitConverter.ToUInt16(peHeader, 24);
-        if (magic != 0x020B)
-        {
-            L($"Shutdown hook: unexpected PE magic 0x{magic:X4}");
-            return;
-        }
-
-        // DataDirectory[12] = IAT (IMAGE_DIRECTORY_ENTRY_IAT)
-        var ddOffset = 24 + 112 + 12 * 8;
-        var iatRva = BitConverter.ToUInt32(peHeader, ddOffset);
-        var iatSize = BitConverter.ToUInt32(peHeader, ddOffset + 4);
-
-        if (iatRva == 0 || iatSize == 0)
-        {
-            L("Shutdown hook: IAT directory not found");
-            return;
-        }
-
-        var iatStart = _mainBase + iatRva;
-        L($"Shutdown hook: IAT at 0x{iatStart:X}, size={iatSize} bytes");
-
-        // Scan IAT for function pointers
-        var termCount = 0;
-        var exitCount = 0;
-
-        for (var addr = iatStart; addr < iatStart + iatSize; addr += 8)
-        {
-            var val = ReadUInt64(addr);
-            if (val == termProcAddr)
-            {
-                _iatPatches.Add((addr, val));
-                WriteUInt64(addr, _terminateStubAddr);
-                termCount++;
-                L($"Shutdown hook: TerminateProcess IAT at 0x{addr:X} → stub 0x{_terminateStubAddr:X}");
-            }
-            else if (val == exitProcAddr)
-            {
-                _iatPatches.Add((addr, val));
-                WriteUInt64(addr, _exitStubAddr);
-                exitCount++;
-                L($"Shutdown hook: ExitProcess IAT at 0x{addr:X} → stub 0x{_exitStubAddr:X}");
-            }
-        }
-
-        L($"Shutdown hook: replaced {termCount} TerminateProcess + {exitCount} ExitProcess IAT entries");
-    }
-
-    private void RestoreShutdownHooks()
-    {
-        foreach (var (addr, orig) in _iatPatches)
-        {
-            try { WriteUInt64(addr, orig); }
-            catch (Exception ex) { L($"Shutdown hook restore at 0x{addr:X} failed: {ex.Message}"); }
-        }
-        if (_iatPatches.Count > 0) L($"Restored {_iatPatches.Count} shutdown IAT hook(s)");
-        _iatPatches.Clear();
     }
 
     /// <summary>
@@ -1084,14 +963,6 @@ public sealed class RuntimeHookEngine : IDisposable
         {
             if (!_crcBypassActive || _handle == IntPtr.Zero) return;
 
-            // Detect and log process death with exit code
-            if (_process?.HasExited != false)
-            {
-                Native.GetExitCodeProcess(_handle, out var exitCode);
-                L($"CRC tick: game process DIED (exit code 0x{exitCode:X8}) — disarming timer");
-                _crcBypassActive = false;
-                return;
-            }
             var tickStart = Environment.TickCount64;
             var hookCount = _hooks.Count;
             var patchCount = _integrityPatches.Count;
