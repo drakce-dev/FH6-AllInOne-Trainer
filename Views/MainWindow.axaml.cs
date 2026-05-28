@@ -7,9 +7,7 @@ using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
-using FH6Mod.Services;
 using FH6Mod.ViewModels;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace FH6Mod.Views;
 

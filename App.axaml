@@ -27,7 +27,7 @@
             <conv:HexToBrushConverter        x:Key="HexToBrushConverter" />
             <conv:NotNullConverter           x:Key="NotNullConverter" />
 
-            <!-- Brand accent (Forza-vibe orange-red) -->
+            <!-- Brand accent -->
             <Color x:Key="AccentColor">#FF6A1F</Color>
             <Color x:Key="AccentColorHover">#FF8845</Color>
             <Color x:Key="AccentColorPressed">#E55400</Color>
@@ -38,12 +38,12 @@
             <SolidColorBrush x:Key="AccentBrushPressed" Color="{StaticResource AccentColorPressed}" />
             <SolidColorBrush x:Key="AccentBrushMuted" Color="{StaticResource AccentColorMuted}" />
 
-            <!-- Surfaces (warm-tinted dark, OLED-ish but not pure black) -->
-            <Color x:Key="Surface0">#0A0A0E</Color>
-            <Color x:Key="Surface1">#13131A</Color>
-            <Color x:Key="Surface2">#1B1B26</Color>
-            <Color x:Key="Surface3">#252531</Color>
-            <Color x:Key="SurfaceBorder">#2F2F3D</Color>
+            <!-- Surfaces -->
+            <Color x:Key="Surface0">#0C0C14</Color>
+            <Color x:Key="Surface1">#141420</Color>
+            <Color x:Key="Surface2">#1C1C2C</Color>
+            <Color x:Key="Surface3">#262638</Color>
+            <Color x:Key="SurfaceBorder">#2A2A3E</Color>
 
             <SolidColorBrush x:Key="Surface0Brush" Color="{StaticResource Surface0}" />
             <SolidColorBrush x:Key="Surface1Brush" Color="{StaticResource Surface1}" />
@@ -52,20 +52,31 @@
             <SolidColorBrush x:Key="SurfaceBorderBrush" Color="{StaticResource SurfaceBorder}" />
 
             <!-- Text -->
-            <SolidColorBrush x:Key="TextPrimary" Color="#EDEDF2" />
-            <SolidColorBrush x:Key="TextSecondary" Color="#9A9AAB" />
-            <SolidColorBrush x:Key="TextDim" Color="#5F5F70" />
+            <SolidColorBrush x:Key="TextPrimary" Color="#E8E8F0" />
+            <SolidColorBrush x:Key="TextSecondary" Color="#8888A0" />
+            <SolidColorBrush x:Key="TextDim" Color="#55556A" />
 
-            <!-- Status colors -->
+            <!-- Status -->
             <SolidColorBrush x:Key="StatusOk" Color="#3DDC97" />
             <SolidColorBrush x:Key="StatusWarn" Color="#FFB347" />
             <SolidColorBrush x:Key="StatusErr" Color="#FF5C5C" />
 
-            <!-- Accent gradient for hero elements -->
+            <!-- Accent gradient -->
             <LinearGradientBrush x:Key="AccentGradient" StartPoint="0%,0%" EndPoint="100%,100%">
                 <GradientStop Color="#FF6A1F" Offset="0" />
                 <GradientStop Color="#FF3D7A" Offset="1" />
             </LinearGradientBrush>
+
+            <!-- Season colors -->
+            <SolidColorBrush x:Key="SeasonSpring" Color="#10B981" />
+            <SolidColorBrush x:Key="SeasonSummer" Color="#F59E0B" />
+            <SolidColorBrush x:Key="SeasonAutumn" Color="#F97316" />
+            <SolidColorBrush x:Key="SeasonWinter" Color="#3B82F6" />
+
+            <SolidColorBrush x:Key="SeasonSpringBg" Color="#1410B981" />
+            <SolidColorBrush x:Key="SeasonSummerBg" Color="#14F59E0B" />
+            <SolidColorBrush x:Key="SeasonAutumnBg" Color="#14F97316" />
+            <SolidColorBrush x:Key="SeasonWinterBg" Color="#143B82F6" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

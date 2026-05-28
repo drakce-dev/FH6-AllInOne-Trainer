@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:FH6Mod.ViewModels"
         xmlns:pages="using:FH6Mod.Views.Pages"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="880" d:DesignHeight="620"
@@ -14,37 +15,82 @@
         WindowStartupLocation="CenterScreen"
         Icon="/Assets/logo.png">
 
-    <Grid RowDefinitions="Auto,*">
+    <Grid ColumnDefinitions="52,*">
 
-        <!-- Title bar -->
-        <Border Grid.Row="0" Padding="16,8"
-                Background="{DynamicResource Surface0Brush}"
-                BorderBrush="{DynamicResource SurfaceBorderBrush}"
-                BorderThickness="0,0,0,1">
-            <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <TextBlock Text="FH6 Trainer" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding CurrentVersionText}" Classes="dim" VerticalAlignment="Center" />
+        <!-- Sidebar -->
+        <Border Grid.Column="0" Background="{DynamicResource Surface1Brush}"
+                BorderBrush="{DynamicResource SurfaceBorderBrush}" BorderThickness="0,0,1,0">
+            <Grid RowDefinitions="Auto,*,Auto">
+                <!-- Logo -->
+                <Image Source="/Assets/logo.png" Width="24" Height="24"
+                       Margin="0,14,0,4" HorizontalAlignment="Center" />
+
+                <!-- Nav buttons -->
+                <StackPanel Grid.Row="1" Spacing="4" HorizontalAlignment="Stretch"
+                            VerticalAlignment="Top" Margin="0,12,0,0">
+                    <Button Classes="nav-item"
+                            ToolTip.Tip="Unlocks"
+                            IsEnabled="{Binding !IsUnlocksPage}"
+                            Command="{Binding NavigateToCommand}" CommandParameter="Unlocks">
+                        <mi:MaterialIcon Kind="LockOpenVariantOutline" Width="20" Height="20" />
+                    </Button>
+                    <Button Classes="nav-item"
+                            ToolTip.Tip="Database"
+                            IsEnabled="{Binding !IsDatabasePage}"
+                            Command="{Binding NavigateToCommand}" CommandParameter="Database">
+                        <mi:MaterialIcon Kind="DatabaseEditOutline" Width="20" Height="20" />
+                    </Button>
+                    <Button Classes="nav-item"
+                            ToolTip.Tip="Settings"
+                            IsEnabled="{Binding !IsSettingsPage}"
+                            Command="{Binding NavigateToCommand}" CommandParameter="Settings">
+                        <mi:MaterialIcon Kind="CogOutline" Width="20" Height="20" />
+                    </Button>
                 </StackPanel>
 
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <!-- Status indicator -->
+                <StackPanel Grid.Row="2" Spacing="4" Margin="0,0,0,12"
+                            HorizontalAlignment="Center">
                     <Ellipse x:Name="StatusDot" Width="8" Height="8"
-                             Fill="{DynamicResource StatusErr}"
-                             VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding GameStatusText}" Classes="subtle" VerticalAlignment="Center" FontSize="12" />
+                             Fill="{DynamicResource StatusErr}" />
+                    <TextBlock Text="{Binding GameStatusText}" FontSize="8"
+                               Foreground="{DynamicResource TextDim}"
+                               TextAlignment="Center" TextWrapping="Wrap"
+                               Width="44" />
                 </StackPanel>
             </Grid>
         </Border>
 
-        <!-- Single scrollable page with all sections -->
-        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
-            <StackPanel>
-                <pages:UnlocksView DataContext="{Binding UnlocksPage}" />
-                <Border Height="1" Background="{DynamicResource SurfaceBorderBrush}" Margin="20,0" />
-                <pages:DatabaseView DataContext="{Binding DatabasePage}" />
-                <Border Height="1" Background="{DynamicResource SurfaceBorderBrush}" Margin="20,0" />
-                <pages:SettingsView DataContext="{Binding SettingsPage}" />
-            </StackPanel>
-        </ScrollViewer>
+        <!-- Content area -->
+        <Grid Grid.Column="1" RowDefinitions="Auto,*">
+
+            <!-- Header bar -->
+            <Border Grid.Row="0" Padding="20,12"
+                    Background="{DynamicResource Surface0Brush}"
+                    BorderBrush="{DynamicResource SurfaceBorderBrush}" BorderThickness="0,0,0,1">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="2">
+                        <TextBlock Text="{Binding PageTitleText}" Classes="page-title" />
+                        <TextBlock Text="{Binding PageSubtitleText}" Classes="page-subtitle" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="1" Text="{Binding CurrentVersionText}"
+                               Classes="dim" VerticalAlignment="Center" />
+                </Grid>
+            </Border>
+
+            <!-- Page host — one page visible at a time -->
+            <Grid Grid.Row="1">
+                <Panel IsVisible="{Binding IsUnlocksPage}">
+                    <pages:UnlocksView DataContext="{Binding UnlocksPage}" />
+                </Panel>
+                <Panel IsVisible="{Binding IsDatabasePage}">
+                    <pages:DatabaseView DataContext="{Binding DatabasePage}" />
+                </Panel>
+                <Panel IsVisible="{Binding IsSettingsPage}">
+                    <pages:SettingsView DataContext="{Binding SettingsPage}" />
+                </Panel>
+            </Grid>
+
+        </Grid>
     </Grid>
 </Window>

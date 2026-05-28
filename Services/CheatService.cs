@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using FH6Mod.Cheats.RuntimeHook;
+using FH6Mod.Cheats.Season;
 using FH6Mod.Cheats.Sql;
 
 namespace FH6Mod.Services;
@@ -12,6 +13,7 @@ public sealed class CheatService : IDisposable
     private readonly LogService _log;
     private readonly RuntimeHookEngine _engine = new();
     private readonly SqlExecutor _sql;
+    private readonly SeasonChanger _season;
     private readonly HashSet<RuntimeProfileFeature> _active = new();
     private int _lastAttachedPid;
 
@@ -27,6 +29,7 @@ public sealed class CheatService : IDisposable
         _game = game;
         _log = log;
         _sql = new SqlExecutor(_engine);
+        _season = new SeasonChanger(_engine);
         _engine.SetLogCallback(msg => _log.Info(msg));
         _game.StatusChanged += OnGameStatusChanged;
     }
@@ -44,6 +47,7 @@ public sealed class CheatService : IDisposable
             _log.Info("Game exited while attached — cleaning up hooks");
             _active.Clear();
             _sql.Reset();
+            _season.Reset();
             try { _engine.Detach(); }
             catch (Exception ex) { LastError = $"Detach on game-exit failed: {ex.Message}"; _log.Error($"Detach failed: {ex.Message}"); }
         }
@@ -89,6 +93,12 @@ public sealed class CheatService : IDisposable
         }
         _lastAttachedPid = _game.Pid!.Value;
         _log.Info($"Attached OK — engine ready");
+
+        // Resolve season entity in background — entity may not exist until game loads
+        if (_season.Resolve(out var seasonErr))
+            _log.Info("Season entity resolved on attach");
+        else
+            _log.Info($"Season entity not yet available: {seasonErr}");
         LastError = null;
         return true;
     }
@@ -148,5 +158,36 @@ public sealed class CheatService : IDisposable
         if (!EnsureAttached()) return Enum.GetValues<RuntimeProfileFeature>()
             .Select(f => (f, false, "Not attached")).ToList();
         return _engine.ScanAllSignatures();
+    }
+
+    public int GetCurrentSeason()
+    {
+        if (!_engine.IsAttached) return -1;
+        if (!_season.IsResolved && !_season.Resolve(out _)) return -1;
+        return _season.GetCurrentSeason();
+    }
+
+    public bool SetSeason(int season, out string? error)
+    {
+        error = null;
+        if (!EnsureAttached()) { error = "Not attached."; return false; }
+        if (season < 0 || season > 3) { error = "Invalid season (0-3)."; return false; }
+
+        if (!_season.IsResolved && !_season.Resolve(out var resolveErr))
+        {
+            error = $"Season entity not found: {resolveErr}";
+            _log.Error(error);
+            return false;
+        }
+
+        if (!_season.SetSeason((SeasonChanger.FHSeason)season, out var setErr))
+        {
+            error = setErr ?? "SetSeason failed";
+            _log.Error(error);
+            return false;
+        }
+
+        LastError = null;
+        return true;
     }
 }

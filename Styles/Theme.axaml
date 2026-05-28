@@ -15,36 +15,58 @@
     </Style>
 
     <Style Selector="TextBlock.h1">
-        <Setter Property="FontSize" Value="32" />
+        <Setter Property="FontSize" Value="28" />
         <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="LetterSpacing" Value="-0.5" />
     </Style>
 
     <Style Selector="TextBlock.h2">
-        <Setter Property="FontSize" Value="22" />
+        <Setter Property="FontSize" Value="20" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="LetterSpacing" Value="-0.3" />
     </Style>
 
     <Style Selector="TextBlock.h3">
-        <Setter Property="FontSize" Value="16" />
+        <Setter Property="FontSize" Value="15" />
         <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
     <Style Selector="TextBlock.subtle">
         <Setter Property="Foreground" Value="{DynamicResource TextSecondary}" />
-        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontSize" Value="12" />
     </Style>
 
     <Style Selector="TextBlock.dim">
         <Setter Property="Foreground" Value="{DynamicResource TextDim}" />
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontSize" Value="11" />
     </Style>
 
-    <Style Selector="TextBlock.eyebrow">
-        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
-        <Setter Property="FontSize" Value="11" />
-        <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="LetterSpacing" Value="2" />
+    <!-- Section label inside cards -->
+    <Style Selector="TextBlock.section-header">
+        <Setter Property="FontSize" Value="10" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Foreground" Value="{DynamicResource TextDim}" />
+        <Setter Property="LetterSpacing" Value="1.5" />
+        <Setter Property="Margin" Value="0,0,0,8" />
     </Style>
+
+    <!-- Page title in header bar -->
+    <Style Selector="TextBlock.page-title">
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="LetterSpacing" Value="-0.2" />
+    </Style>
+
+    <!-- Page subtitle in header bar -->
+    <Style Selector="TextBlock.page-subtitle">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondary}" />
+    </Style>
+
+    <!-- Hint text (blue info lines) -->
+    <Style Selector="TextBlock.hint">
+        <Setter Property="FontSize" Value="10" />
+        <Setter Property="Foreground" Value="#FF64B5F6" />
+    </Style>
+
 </Styles>
