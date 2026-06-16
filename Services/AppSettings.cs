@@ -16,6 +16,7 @@ namespace FH6Mod.Services;
 /// </summary>
 public sealed class AppSettings
 {
+    public bool   CloseToTrayEnabled   { get; set; } = false;
     public bool   AnimationsEnabled    { get; set; } = true;
     public int    AnimationStaggerMs   { get; set; } = 60;
     public int    AnimationDurationMs  { get; set; } = 320;
@@ -44,6 +45,10 @@ public sealed class AppSettings
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
             if (root.ValueKind != JsonValueKind.Object) return s;
+
+            if (root.TryGetProperty("CloseToTrayEnabled", out var t) &&
+                (t.ValueKind == JsonValueKind.True || t.ValueKind == JsonValueKind.False))
+                s.CloseToTrayEnabled = t.GetBoolean();
 
             if (root.TryGetProperty("AnimationsEnabled", out var a) &&
                 (a.ValueKind == JsonValueKind.True || a.ValueKind == JsonValueKind.False))
@@ -79,6 +84,7 @@ public sealed class AppSettings
             Directory.CreateDirectory(SettingsDir);
             var node = new JsonObject
             {
+                ["CloseToTrayEnabled"]   = CloseToTrayEnabled,
                 ["AnimationsEnabled"]    = AnimationsEnabled,
                 ["AnimationStaggerMs"]   = AnimationStaggerMs,
                 ["AnimationDurationMs"]  = AnimationDurationMs,

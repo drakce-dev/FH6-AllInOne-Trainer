@@ -34,6 +34,7 @@ public partial class SettingsViewModel : PageViewModelBase
 
     public string VersionText => $"v{System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "?.?.?"}";
 
+    [ObservableProperty] private bool _closeToTrayEnabled;
     [ObservableProperty] private bool _animationsEnabled;
     [ObservableProperty] private bool _mouseGlowEnabled;
     [ObservableProperty] private string _selectedAccentName = AppSettings.Current.AccentName;
@@ -61,12 +62,18 @@ public partial class SettingsViewModel : PageViewModelBase
         _cheat = cheat;
         _game = game;
         _profiles = profiles;
+        CloseToTrayEnabled = AppSettings.Current.CloseToTrayEnabled;
         AnimationsEnabled = AppSettings.Current.AnimationsEnabled;
         MouseGlowEnabled  = AppSettings.Current.MouseGlowEnabled;
         AccentOptions = AccentPalette.All
             .Select(a => new AccentItemVm(a, a.Name == SelectedAccentName))
             .ToList();
         RefreshProfiles();
+    }
+    partial void OnCloseToTrayEnabledChanged(bool value)
+    {
+        AppSettings.Current.CloseToTrayEnabled = value;
+        AppSettings.Current.NotifyChanged();
     }
 
     partial void OnAnimationsEnabledChanged(bool value)

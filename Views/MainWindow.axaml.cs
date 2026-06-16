@@ -7,6 +7,7 @@ using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
+using FH6Mod.Services;
 using FH6Mod.ViewModels;
 
 namespace FH6Mod.Views;
@@ -21,12 +22,13 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContextChanged += (_, _) => HookGameStatus();
+
         InitTray();
     }
 
     protected override void OnClosing(WindowClosingEventArgs e)
     {
-        if (!AllowExit && _trayIcon is not null)
+        if (AppSettings.Current.CloseToTrayEnabled && !AllowExit && _trayIcon is not null)
         {
             e.Cancel = true;
             Hide();
